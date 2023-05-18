@@ -10,6 +10,23 @@ RM := rm -rf
 # All of the sources participating in the build are defined here
 -include sources.mk
 -include Drivers/STM32F4xx_HAL_Driver/Src/subdir.mk
+-include Drivers/DSP/Source/WindowFunctions/subdir.mk
+-include Drivers/DSP/Source/TransformFunctions/subdir.mk
+-include Drivers/DSP/Source/SupportFunctions/subdir.mk
+-include Drivers/DSP/Source/StatisticsFunctions/subdir.mk
+-include Drivers/DSP/Source/SVMFunctions/subdir.mk
+-include Drivers/DSP/Source/QuaternionMathFunctions/subdir.mk
+-include Drivers/DSP/Source/MatrixFunctions/subdir.mk
+-include Drivers/DSP/Source/InterpolationFunctions/subdir.mk
+-include Drivers/DSP/Source/FilteringFunctions/subdir.mk
+-include Drivers/DSP/Source/FastMathFunctions/subdir.mk
+-include Drivers/DSP/Source/DistanceFunctions/subdir.mk
+-include Drivers/DSP/Source/ControllerFunctions/subdir.mk
+-include Drivers/DSP/Source/ComplexMathFunctions/subdir.mk
+-include Drivers/DSP/Source/CommonTables/subdir.mk
+-include Drivers/DSP/Source/BayesFunctions/subdir.mk
+-include Drivers/DSP/Source/BasicMathFunctions/subdir.mk
+-include Drivers/DSP/ComputeLibrary/Source/subdir.mk
 -include Core/Startup/subdir.mk
 -include Core/Src/subdir.mk
 -include objects.mk

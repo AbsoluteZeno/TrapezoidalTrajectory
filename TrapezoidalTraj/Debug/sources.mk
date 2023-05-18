@@ -23,5 +23,22 @@ C_DEPS :=
 SUBDIRS := \
 Core/Src \
 Core/Startup \
+Drivers/DSP/ComputeLibrary/Source \
+Drivers/DSP/Source/BasicMathFunctions \
+Drivers/DSP/Source/BayesFunctions \
+Drivers/DSP/Source/CommonTables \
+Drivers/DSP/Source/ComplexMathFunctions \
+Drivers/DSP/Source/ControllerFunctions \
+Drivers/DSP/Source/DistanceFunctions \
+Drivers/DSP/Source/FastMathFunctions \
+Drivers/DSP/Source/FilteringFunctions \
+Drivers/DSP/Source/InterpolationFunctions \
+Drivers/DSP/Source/MatrixFunctions \
+Drivers/DSP/Source/QuaternionMathFunctions \
+Drivers/DSP/Source/SVMFunctions \
+Drivers/DSP/Source/StatisticsFunctions \
+Drivers/DSP/Source/SupportFunctions \
+Drivers/DSP/Source/TransformFunctions \
+Drivers/DSP/Source/WindowFunctions \
 Drivers/STM32F4xx_HAL_Driver/Src \
 
