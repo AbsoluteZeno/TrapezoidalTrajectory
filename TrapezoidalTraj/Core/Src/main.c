@@ -71,16 +71,16 @@ typedef struct _QEIStructure
 	uint32_t data[2];
 	uint32_t timestamp[2];
 
-	float QEIPosition;	// rad
-	float QEIVelocity;	// rpm
+	float pos;	// rad
+	float vel;	// rpm
 }QEIStructureTypeDef;
 QEIStructureTypeDef QEIData = {0};
 
-float32_t Duty = 5000.0;
+float32_t Duty = 0;
 
 arm_pid_instance_f32 Vel_PID = {0};
 arm_pid_instance_f32 Pos_PID = {0};
-float32_t ang_pos_des = 350;
+float32_t ang_vel_des = 0;
 
 /* USER CODE END PV */
 
@@ -98,6 +98,8 @@ void QEIEncoderPositionVelocity_Update();
 
 void TrapezoidalTraj_PreCal(int16_t start_pos, int16_t final_pos);
 void TrapezoidalTraj_GetState(int16_t start_pos, int16_t final_pos, uint32_t t_us);
+
+float32_t VelocityControl(float32_t input);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -142,14 +144,13 @@ int main(void)
   HAL_TIM_Base_Start(&htim1);
   HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_1 || TIM_CHANNEL_2);
 
-  Vel_PID.Kp = 0;
-  Vel_PID.Ki = 0;
-  Vel_PID.Kd = 0;
+  Vel_PID.Kp = 125;
+  Vel_PID.Ki = 50;
+  Vel_PID.Kd = 1;
   arm_pid_init_f32(&Vel_PID, 0);
 
 //  TrapezoidalTraj_PreCal(Pi, Pf);
 
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
   /* USER CODE END 2 */
 
@@ -168,9 +169,10 @@ int main(void)
 //			  TrapezoidalTraj_GetState(Pi, Pf, t);
 //		  }
 		  t = micros() + 100000;
-		  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, Duty);
-
 		  QEIEncoderPositionVelocity_Update();
+
+		  Duty = VelocityControl(ang_vel_des);
+		  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, fabs(Duty));
 	  }
 
   }
@@ -480,7 +482,7 @@ void QEIEncoderPositionVelocity_Update()
 	QEIData.data[0] = counterPosition;
 
 	// Angular position calculation
-	QEIData.QEIPosition = QEIData.data[0] * PI *  2.0/res;
+	QEIData.pos = QEIData.data[0] * PI *  2.0/res;
 
 	int32_t diffPosition = QEIData.data[0] - QEIData.data[1];
 	float diffTime = QEIData.timestamp[0] - QEIData.timestamp[1];
@@ -490,7 +492,7 @@ void QEIEncoderPositionVelocity_Update()
 	if (diffPosition < -(QEI_PERIOD>>1)) diffPosition += QEI_PERIOD;
 
 	// Angular velocity calculation
-	QEIData.QEIVelocity = (diffPosition * 60000000.0)/(res * diffTime);
+	QEIData.vel = (diffPosition * 60000000.0)/(res * diffTime);
 
 	QEIData.data[1] = QEIData.data[0];
 	QEIData.timestamp[1] = QEIData.timestamp[0];
@@ -554,6 +556,31 @@ void TrapezoidalTraj_GetState(int16_t start_pos, int16_t final_pos, uint32_t t_u
 			q_des = start_pos + dir*(2*a*t_acc*t-0.5*a*pow(t,2)-a*pow(t_acc,2));
 		}
 	}
+}
+
+float32_t VelocityControl(float32_t input)
+{
+	float32_t output = arm_pid_f32(&Vel_PID, input - QEIData.vel);
+
+	if (output >= 0)
+	{
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);
+
+		if (output > 9900)
+		{
+			output = 9900;
+		}
+	}
+	else
+	{
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
+
+		if (output < -9900)
+		{
+			output = -9900;
+		}
+	}
+	return output;
 }
 /* USER CODE END 4 */
 
