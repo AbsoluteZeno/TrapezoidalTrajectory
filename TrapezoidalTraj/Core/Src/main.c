@@ -50,14 +50,16 @@ UART_HandleTypeDef huart2;
 float t_total;			  // s
 float t_acc;			  // s
 uint8_t emer_pushed = 1;
+float freq = 10;		  // Hz
 //Variables============================
 float v_max = 24.0;	  	  // mm/s
 float a = 50.0;		  	  // mm/s^2
 uint16_t res = 3072;      // Resolution [pulse/revolution]
 float pulley_dia = 30.558;// mm
-float Pi = 0;		  // mm
-float Pf = 70;			  // mm
+float Pi = 0;		  	  // mm
+float Pf = 0;			  // mm
 //=====================================
+float Pf_last = 0;
 
 // Trajectory
 float q_des;
@@ -82,8 +84,11 @@ float32_t Duty = 0;
 
 arm_pid_instance_f32 Vel_PID = {0};
 arm_pid_instance_f32 Pos_PID = {0};
+
 float32_t vel_des = 0;
 
+uint64_t t_CPU = 0;
+uint64_t t = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -102,6 +107,8 @@ void TrapezoidalTraj_PreCal(int16_t start_pos, int16_t final_pos);
 void TrapezoidalTraj_GetState(int16_t start_pos, int16_t final_pos, uint32_t t_us);
 
 void MotorDrive();
+
+void ControllerState();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -151,14 +158,13 @@ int main(void)
   Vel_PID.Kd = 0;
   arm_pid_init_f32(&Vel_PID, 0);
 
-  Pos_PID.Kp = 1;
-  Pos_PID.Ki = 0;
+  Pos_PID.Kp = 7;
+  Pos_PID.Ki = 5;
   Pos_PID.Kd = 0;
   arm_pid_init_f32(&Pos_PID, 0);
 
-//  TrapezoidalTraj_PreCal(Pi, Pf);
-
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -168,21 +174,14 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  static uint64_t t = 0;
-	  if (t <= micros())
+	  if (t_CPU <= micros())
 	  {
-		  if (t <= t_total * 1000000)
-		  {
-			  TrapezoidalTraj_GetState(Pi, Pf, t);
-		  }
-		  t = micros() + 100000;
+		  t_CPU = micros() + 1000000/freq;
 		  QEIEncoderPositionVelocity_Update();
 
-		  vel_des = arm_pid_f32(&Pos_PID, q_des - QEIData.pos);
-		  Duty = arm_pid_f32(&Vel_PID, vel_des + qdot_des - QEIData.vel);
-		  MotorDrive();
+		  ControllerState();
+		  Pf_last = Pf;
 	  }
-
   }
   /* USER CODE END 3 */
 }
@@ -498,9 +497,13 @@ void QEIEncoderPositionVelocity_Update()
 	QEIData.timestamp[0] = micros();
 	uint32_t counterPosition = __HAL_TIM_GET_COUNTER(&htim3);
 	QEIData.data[0] = counterPosition;
+	if (counterPosition > ((QEI_PERIOD/2) - 1))
+	{
+		QEIData.data[0] = counterPosition - QEI_PERIOD;
+	}
 
 	// position calculation
-	QEIData.pos = (QEIData.data[0] - (QEI_PERIOD/2.0)) * PI *  pulley_dia/res;
+	QEIData.pos = QEIData.data[0] * PI *  pulley_dia/res;
 
 	int32_t diffPosition = QEIData.data[0] - QEIData.data[1];
 	float diffTime = QEIData.timestamp[0] - QEIData.timestamp[1];
@@ -518,60 +521,66 @@ void QEIEncoderPositionVelocity_Update()
 
 void TrapezoidalTraj_PreCal(int16_t start_pos, int16_t final_pos)
 {
-	float s = final_pos - start_pos;
+	if (start_pos != final_pos)
+	{
+		float s = final_pos - start_pos;
 
-	t_acc = v_max/a;
-	t_total = (pow(v_max,2)+a*fabs(s))/(a*v_max);
+		t_acc = v_max/a;
+		t_total = (pow(v_max,2)+a*fabs(s))/(a*v_max);
+	}
 }
 
 void TrapezoidalTraj_GetState(int16_t start_pos, int16_t final_pos, uint32_t t_us)
 {
-	float t = t_us/1000000.0;
-
-	float s = final_pos - start_pos;
-	int8_t dir = 1;
-	if (s < 0)
+	if (start_pos != final_pos)
 	{
-		dir = -1;
-	}
+		float t = t_us/1000000.0;
 
-	if (2*t_acc < t_total) // General Case
-	{
-		if (t <= t_acc)
+		float s = final_pos - start_pos;
+		int8_t dir = 1;
+		if (s < 0)
 		{
-			qddot_des = dir*a;
-			qdot_des = dir*a*t;
-			q_des = start_pos + dir*(0.5*a*pow(t,2));
+			dir = -1;
 		}
-		else if (t_acc < t && t < (t_total - t_acc))
-		{
-			qddot_des = 0;
-			qdot_des = dir*a*t_acc;
-			q_des = start_pos + dir*(0.5*a*pow(t_acc,2) + a*t_acc*(t - t_acc));
-		}
-		else if ((t_total - t_acc) <= t && t <= t_total)
-		{
-			qddot_des = -dir*a;
-			qdot_des = dir*a*(t_total - t);
-			q_des = start_pos + dir*(a*t_total*t+a*t_acc*t_total-a*pow(t_acc,2)-0.5*a*(pow(t,2)+pow(t_total,2)));
-		}
-	}
-	else	// Triangle Case
-	{
-		t_acc = 0.5*sqrt(4*fabs(s)/a);
-		t_total = 2*t_acc;
 
-		if (t <= t_acc)
+		if (2*t_acc < t_total) // General Case
 		{
-			qddot_des = dir*a;
-			qdot_des = dir*a*t;
-			q_des = start_pos + dir*(0.5*a*pow(t,2));
+			if (t <= t_acc)
+			{
+				qddot_des = dir*a;
+				qdot_des = dir*a*t;
+				q_des = start_pos + dir*(0.5*a*pow(t,2));
+			}
+			else if (t_acc < t && t < (t_total - t_acc))
+			{
+				qddot_des = 0;
+				qdot_des = dir*a*t_acc;
+				q_des = start_pos + dir*(0.5*a*pow(t_acc,2) + a*t_acc*(t - t_acc));
+			}
+			else if ((t_total - t_acc) <= t && t <= t_total)
+			{
+				qddot_des = -dir*a;
+				qdot_des = dir*a*(t_total - t);
+				q_des = start_pos + dir*(a*t_total*t+a*t_acc*t_total-a*pow(t_acc,2)-0.5*a*(pow(t,2)+pow(t_total,2)));
+			}
 		}
-		else if (t_acc < t && t < t_total)
+		else	// Triangle Case
 		{
-			qddot_des = -dir*a;
-			qdot_des = dir*a*(2*t_acc - t);
-			q_des = start_pos + dir*(2*a*t_acc*t-0.5*a*pow(t,2)-a*pow(t_acc,2));
+			t_acc = 0.5*sqrt(4*fabs(s)/a);
+			t_total = 2*t_acc;
+
+			if (t <= t_acc)
+			{
+				qddot_des = dir*a;
+				qdot_des = dir*a*t;
+				q_des = start_pos + dir*(0.5*a*pow(t,2));
+			}
+			else if (t_acc < t && t < t_total)
+			{
+				qddot_des = -dir*a;
+				qdot_des = dir*a*(2*t_acc - t);
+				q_des = start_pos + dir*(2*a*t_acc*t-0.5*a*pow(t,2)-a*pow(t_acc,2));
+			}
 		}
 	}
 }
@@ -616,6 +625,46 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	{
 		emer_pushed = 1;
 	}
+}
+
+void ControllerState()
+{
+	static enum {Idle, Follow} state = Idle;
+
+	switch(state)
+	{
+	case Idle:
+		Duty = 0;
+		MotorDrive();
+		Pi = QEIData.pos;
+
+		if(Pf != Pf_last)
+		{
+			TrapezoidalTraj_PreCal(Pi, Pf);
+			t = 0;
+			state = Follow;
+		}
+	break;
+
+	case Follow:
+		t = t + 1000000/freq;
+		if (t <= t_total * 1000000)
+		{
+			TrapezoidalTraj_GetState(Pi, Pf, t);
+		}
+
+		vel_des = arm_pid_f32(&Pos_PID, q_des - QEIData.pos);
+		Duty = arm_pid_f32(&Vel_PID, vel_des + qdot_des - QEIData.vel);
+		MotorDrive();
+
+		if (t > (t_total * 1000000) + 10000)
+		{
+			state = Idle;
+		}
+
+	break;
+	}
+
 }
 /* USER CODE END 4 */
 
