@@ -657,7 +657,7 @@ void ControllerState()
 		Duty = arm_pid_f32(&Vel_PID, vel_des + qdot_des - QEIData.vel);
 		MotorDrive();
 
-		if (t > (t_total * 1000000) + 10000)
+		if ((t > t_total * 1000000) && (0.1 > fabs(Pf - QEIData.pos)))
 		{
 			state = Idle;
 		}
