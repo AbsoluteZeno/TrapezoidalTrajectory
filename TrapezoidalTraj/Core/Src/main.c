@@ -46,49 +46,54 @@ TIM_HandleTypeDef htim5;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-//Parameters===========================
-float t_total;			  // s
-float t_acc;			  // s
-uint8_t emer_pushed = 1;
-float freq = 10;		  // Hz
-//Variables============================
-float v_max = 24.0;	  	  // mm/s
-float a = 50.0;		  	  // mm/s^2
-uint16_t res = 3072;      // Resolution [pulse/revolution]
-float pulley_dia = 30.558;// mm
-float Pi = 0;		  	  // mm
-float Pf = 0;			  // mm
-//=====================================
+//Parameters ==============================================
+// Trajectory ---------------------------------------------
+uint64_t t_traj = 0;	  // [us] 		Time use in trajectory function
+float q_des;			  // [mm] 		Desire position calculated from trajectory
+float qdot_des;			  // [mm/s] 	Desire velocity calculated from trajectory
+float qddot_des;		  // [mm/s^2] 	Desire acceleration calculated from trajectory
+float t_total;			  // [s]
+float t_acc;			  // [s]
+float Pi = 0;		  	  // [mm]
+float Pf = 0;			  // [mm]
 float Pf_last = 0;
-
-// Trajectory
-float q_des;
-float qdot_des;
-float qddot_des;
-
-// Time
+// Time ---------------------------------------------------
 uint64_t _micros = 0;
-
-// QEI
+uint64_t t_CPU = 0;
+// QEI ----------------------------------------------------
 typedef struct _QEIStructure
 {
 	int32_t data[2];
 	uint32_t timestamp[2];
-
-	float pos;	// mm
-	float vel;	// mm/s
+	float position;	// mm
+	float velocity;	// mm/s
 }QEIStructureTypeDef;
 QEIStructureTypeDef QEIData = {0};
+// PID ----------------------------------------------------
+float PulseWidthModulation = 0;
+float setposition = 0;
+float first_error = 0;
+float second_error = 0;
+float third_error = 0;
+float kp_position = 87;
+float ki_position = 0.7;
+float kd_position = 0;
+// Elec ---------------------------------------------------
+// Emergency Switch
+uint8_t emer_pushed = 1;
+// Photoelectric sensor
+uint8_t 	pe1_st;
+uint8_t 	pe2_st;					//Photoelectric Sensor Value
+uint8_t 	pe3_st;
+//Variables ===============================================
+float freq = 10;		  // Hz
+float v_max = 1000.0;	  	  // mm/s
+float a = 2000.0;		  	  // mm/s^2
+uint16_t res = 8192;      // Resolution [pulse/revolution]
+float pulley_dia = 30.558;// mm
+//=========================================================
+uint32_t Micro = 0;
 
-float32_t Duty = 0;
-
-arm_pid_instance_f32 Vel_PID = {0};
-arm_pid_instance_f32 Pos_PID = {0};
-
-float32_t vel_des = 0;
-
-uint64_t t_CPU = 0;
-uint64_t t = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -99,16 +104,19 @@ static void MX_TIM5_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
-uint64_t micros();
+inline uint64_t micros();
 
 void QEIEncoderPositionVelocity_Update();
 
 void TrapezoidalTraj_PreCal(int16_t start_pos, int16_t final_pos);
 void TrapezoidalTraj_GetState(int16_t start_pos, int16_t final_pos, uint32_t t_us);
 
+void PositionControlVelocityForm();
 void MotorDrive();
 
 void ControllerState();
+
+void check_pe();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -149,20 +157,9 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start(&htim5);
+  HAL_TIM_Base_Start_IT(&htim5);
   HAL_TIM_Base_Start(&htim1);
   HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_1 || TIM_CHANNEL_2);
-
-  Vel_PID.Kp = 50;
-  Vel_PID.Ki = 40;
-  Vel_PID.Kd = 0;
-  arm_pid_init_f32(&Vel_PID, 0);
-
-  Pos_PID.Kp = 7;
-  Pos_PID.Ki = 5;
-  Pos_PID.Kd = 0;
-  arm_pid_init_f32(&Pos_PID, 0);
-
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
   /* USER CODE END 2 */
@@ -174,14 +171,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  if (t_CPU <= micros())
-	  {
-		  t_CPU = micros() + 1000000/freq;
-		  QEIEncoderPositionVelocity_Update();
-
-		  ControllerState();
-		  Pf_last = Pf;
-	  }
+	  Micro = micros();
   }
   /* USER CODE END 3 */
 }
@@ -208,9 +198,9 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 16;
-  RCC_OscInitStruct.PLL.PLLN = 336;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
+  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLN = 100;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 4;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -226,7 +216,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
   {
     Error_Handler();
   }
@@ -331,7 +321,7 @@ static void MX_TIM3_Init(void)
   htim3.Init.Period = QEI_PERIOD - 1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  sConfig.EncoderMode = TIM_ENCODERMODE_TI1;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
   sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
@@ -375,9 +365,9 @@ static void MX_TIM5_Init(void)
 
   /* USER CODE END TIM5_Init 1 */
   htim5.Instance = TIM5;
-  htim5.Init.Prescaler = 83;
+  htim5.Init.Prescaler = 0;
   htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim5.Init.Period = 4294967295;
+  htim5.Init.Period = 99999;
   htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
@@ -465,11 +455,29 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PB1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PB2 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
   /*Configure GPIO pin : PB12 */
   GPIO_InitStruct.Pin = GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
@@ -482,28 +490,32 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 	if(htim == &htim5)
 	{
-		_micros += UINT32_MAX;
+		_micros += 1000;
+
+		QEIEncoderPositionVelocity_Update();
+		check_pe();
+		ControllerState();
 	}
 }
 
 uint64_t micros()
 {
-	return __HAL_TIM_GET_COUNTER(&htim5) + _micros;
+	return __HAL_TIM_GET_COUNTER(&htim5)*0.01 + _micros;
 }
+
 
 void QEIEncoderPositionVelocity_Update()
 {
-	// collect data
 	QEIData.timestamp[0] = micros();
-	uint32_t counterPosition = __HAL_TIM_GET_COUNTER(&htim3);
-	QEIData.data[0] = counterPosition;
-	if (counterPosition > ((QEI_PERIOD/2) - 1))
+	uint32_t lastposition = __HAL_TIM_GET_COUNTER(&htim3);
+	QEIData.data[0] = lastposition;
+	if (lastposition > ((QEI_PERIOD/2) - 1))
 	{
-		QEIData.data[0] = counterPosition - QEI_PERIOD;
+		QEIData.data[0] = lastposition - QEI_PERIOD;
 	}
 
 	// position calculation
-	QEIData.pos = QEIData.data[0] * PI *  pulley_dia/res;
+	QEIData.position = QEIData.data[0] * PI *  pulley_dia/res;
 
 	int32_t diffPosition = QEIData.data[0] - QEIData.data[1];
 	float diffTime = QEIData.timestamp[0] - QEIData.timestamp[1];
@@ -513,7 +525,7 @@ void QEIEncoderPositionVelocity_Update()
 	if (diffPosition < -(QEI_PERIOD>>1)) diffPosition += QEI_PERIOD;
 
 	// velocity calculation
-	QEIData.vel = (diffPosition * 1000000.0 * PI * pulley_dia)/(res * diffTime);
+	QEIData.velocity = (diffPosition * 1000000.0 * PI * pulley_dia)/(res * diffTime);
 
 	QEIData.data[1] = QEIData.data[0];
 	QEIData.timestamp[1] = QEIData.timestamp[0];
@@ -585,33 +597,48 @@ void TrapezoidalTraj_GetState(int16_t start_pos, int16_t final_pos, uint32_t t_u
 	}
 }
 
+void PositionControlVelocityForm()
+{
+	first_error = q_des - QEIData.position;
+
+	PulseWidthModulation += ((kp_position + ki_position + kd_position) * first_error) - ((kp_position + (2 * kd_position)) * second_error) + (kd_position * third_error);
+
+	third_error = second_error;
+
+	second_error = first_error;
+}
+
 void MotorDrive()
 {
 	if(emer_pushed == 1){
-		if (Duty >= 0)
+		if (PulseWidthModulation >= 0)
 		{
 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);
-
-			if (Duty > 9900)
+			if (PulseWidthModulation > 8000)
 			{
-				Duty = 9900;
+				PulseWidthModulation = 8000;
+			}
+
+			if (pe2_st)
+			{
+				PulseWidthModulation = 0;
 			}
 		}
 		else
 		{
 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
-
-			if (Duty < -9900)
+			if (PulseWidthModulation < -8000)
 			{
-				Duty = -9900;
+				PulseWidthModulation = -8000;
+			}
+
+			if (pe3_st)
+			{
+				PulseWidthModulation = 0;
 			}
 		}
 
-//		if (fabs(Duty) < 1000)
-//		{
-//			Duty = 0;
-//		}
-		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, fabs(Duty));
+		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, fabs(PulseWidthModulation));
 	}
 }
 
@@ -634,37 +661,48 @@ void ControllerState()
 	switch(state)
 	{
 	case Idle:
-		Duty = 0;
+		PulseWidthModulation = 0;
 		MotorDrive();
-		Pi = QEIData.pos;
+		Pi = QEIData.position;
 
 		if(Pf != Pf_last)
 		{
+			t_traj = 0;
 			TrapezoidalTraj_PreCal(Pi, Pf);
-			t = 0;
 			state = Follow;
 		}
 	break;
 
 	case Follow:
-		t = t + 1000000/freq;
-		if (t <= t_total * 1000000)
+		t_traj = t_traj + 100000;
+		if (t_traj <= t_total * 1000000)
 		{
-			TrapezoidalTraj_GetState(Pi, Pf, t);
+			TrapezoidalTraj_GetState(Pi, Pf, t_traj);
+		}
+		else
+		{
+			q_des = Pf;
 		}
 
-		vel_des = arm_pid_f32(&Pos_PID, q_des - QEIData.pos);
-		Duty = arm_pid_f32(&Vel_PID, vel_des + qdot_des - QEIData.vel);
+		PositionControlVelocityForm();
 		MotorDrive();
 
-		if ((t > t_total * 1000000) && (0.1 > fabs(Pf - QEIData.pos)))
+		if ((t_traj > t_total * 1000000) && (0.15 > fabs(q_des - QEIData.position)))
 		{
 			state = Idle;
 		}
-
 	break;
 	}
+	Pf_last = Pf;
+}
 
+void check_pe(){
+	// Photoelectric Sensor
+	if(emer_pushed == 1){
+		pe1_st = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_1);
+		pe2_st = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_2);
+		pe3_st = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9);
+	}
 }
 /* USER CODE END 4 */
 
