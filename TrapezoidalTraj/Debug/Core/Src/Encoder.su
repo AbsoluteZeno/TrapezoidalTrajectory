@@ -1,0 +1,2 @@
+../Core/Src/Encoder.c:16:10:micros	24	static
+../Core/Src/Encoder.c:21:6:QEIEncoderPositionVelocity_Update	40	static

@@ -13,9 +13,9 @@ typedef struct
 {
 	float t_total;			  // [s]
 	float t_acc;			  // [s]
-};
+}Traj;
 
-void TrapezoidalTraj_PreCal(int16_t start_pos, int16_t final_pos);
-void TrapezoidalTraj_GetState(int16_t start_pos, int16_t final_pos, uint32_t t_us);
+void TrapezoidalTraj_PreCal(int16_t start_pos, int16_t final_pos, Traj* trajectory);
+void TrapezoidalTraj_GetState(int16_t start_pos, int16_t final_pos, Traj* trajectory, uint32_t t_us);
 
 #endif /* INC_TRAPEZOIDALTRAJECTORY_H_ */
