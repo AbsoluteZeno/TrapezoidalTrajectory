@@ -59,7 +59,6 @@ float Pf = 0;			  // [mm]
 float Pf_last = 0;
 // Time ---------------------------------------------------
 uint64_t _micros = 0;
-uint64_t t_CPU = 0;
 // QEI ----------------------------------------------------
 typedef struct _QEIStructure
 {
@@ -75,9 +74,14 @@ float setposition = 0;
 float first_error = 0;
 float second_error = 0;
 float third_error = 0;
-float kp_position = 87;
-float ki_position = 0.7;
+float kp_position = 120;
+float ki_position = 0.05;
 float kd_position = 0;
+// Safety -------------------------------------------------
+uint8_t P_disallow = 0;
+uint8_t N_disallow = 0;
+// Set Home -----------------------------------------------
+uint8_t SetHomeFlag = 1;
 // Elec ---------------------------------------------------
 // Emergency Switch
 uint8_t emer_pushed = 1;
@@ -107,6 +111,8 @@ static void MX_TIM3_Init(void);
 inline uint64_t micros();
 
 void QEIEncoderPositionVelocity_Update();
+
+void SetHome();
 
 void TrapezoidalTraj_PreCal(int16_t start_pos, int16_t final_pos);
 void TrapezoidalTraj_GetState(int16_t start_pos, int16_t final_pos, uint32_t t_us);
@@ -161,6 +167,8 @@ int main(void)
   HAL_TIM_Base_Start(&htim1);
   HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_1 || TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+
+  TrapezoidalTraj_PreCal(0, 100);
 
   /* USER CODE END 2 */
 
@@ -494,6 +502,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 		QEIEncoderPositionVelocity_Update();
 		check_pe();
+		SetHome();
 		ControllerState();
 	}
 }
@@ -614,27 +623,31 @@ void MotorDrive()
 		if (PulseWidthModulation >= 0)
 		{
 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);
+			N_disallow = 0;
 			if (PulseWidthModulation > 8000)
 			{
 				PulseWidthModulation = 8000;
 			}
 
-			if (pe2_st)
+			if (pe2_st || P_disallow)
 			{
 				PulseWidthModulation = 0;
+				P_disallow = 1;
 			}
 		}
 		else
 		{
 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
+			P_disallow = 0;
 			if (PulseWidthModulation < -8000)
 			{
 				PulseWidthModulation = -8000;
 			}
 
-			if (pe3_st)
+			if (pe3_st || P_disallow)
 			{
 				PulseWidthModulation = 0;
+				N_disallow = 1;
 			}
 		}
 
@@ -642,7 +655,108 @@ void MotorDrive()
 	}
 }
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+void ControllerState()
+{
+	static enum {Idle, Follow} state = Idle;
+
+	if (SetHomeFlag == 0)
+	{
+		switch(state)
+		{
+		case Idle:
+			PulseWidthModulation = 0;
+			MotorDrive();
+			Pi = QEIData.position;
+
+			if(Pf != Pf_last)
+			{
+				t_traj = 0;
+				TrapezoidalTraj_PreCal(Pi, Pf);
+				state = Follow;
+			}
+		break;
+
+		case Follow:
+			t_traj = t_traj + 1000;
+			if (t_traj <= t_total * 1000000)
+			{
+				TrapezoidalTraj_GetState(Pi, Pf, t_traj);
+			}
+			else
+			{
+				q_des = Pf;
+			}
+
+			PositionControlVelocityForm();
+			MotorDrive();
+
+			if (((t_traj > t_total * 1000000) && (0.15 > fabs(q_des - QEIData.position))) || P_disallow || P_disallow)
+			{
+				state = Idle;
+			}
+		break;
+		}
+		Pf_last = Pf;
+	}
+}
+
+void SetHome()
+{
+	static enum {Jog, Overcenter, Center, Recenter} SetHomeState = Jog;
+
+	if (SetHomeFlag)
+	{
+		switch (SetHomeState)
+		{
+		case Jog:
+			PulseWidthModulation = 3000;
+
+			if (pe1_st)
+			{
+				__HAL_TIM_SET_COUNTER(&htim3, 0);
+				SetHomeState = Overcenter;
+			}
+			else if (pe2_st)
+			{
+				__HAL_TIM_SET_COUNTER(&htim3, 0);
+				SetHomeState = Recenter;
+			}
+			break;
+		case Overcenter:
+			PulseWidthModulation = 3000;
+
+			if (QEIData.position >= 20)
+			{
+				SetHomeState = Center;
+			}
+			break;
+		case Center:
+			PulseWidthModulation = -1000;
+
+			if (pe1_st)
+			{
+				PulseWidthModulation = 0;
+				MotorDrive();
+				__HAL_TIM_SET_COUNTER(&htim3, 0);
+				SetHomeFlag = 0;
+				SetHomeState = Jog;
+			}
+			break;
+		case Recenter:
+			PulseWidthModulation = -3000;
+
+			if (QEIData.position <= -330)
+			{
+				SetHomeState = Center;
+			}
+			break;
+		}
+		MotorDrive();
+	}
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
 	if(GPIO_Pin == GPIO_PIN_12 && HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == 0)
 	{
 		emer_pushed = 0;
@@ -652,48 +766,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	{
 		emer_pushed = 1;
 	}
-}
-
-void ControllerState()
-{
-	static enum {Idle, Follow} state = Idle;
-
-	switch(state)
-	{
-	case Idle:
-		PulseWidthModulation = 0;
-		MotorDrive();
-		Pi = QEIData.position;
-
-		if(Pf != Pf_last)
-		{
-			t_traj = 0;
-			TrapezoidalTraj_PreCal(Pi, Pf);
-			state = Follow;
-		}
-	break;
-
-	case Follow:
-		t_traj = t_traj + 100000;
-		if (t_traj <= t_total * 1000000)
-		{
-			TrapezoidalTraj_GetState(Pi, Pf, t_traj);
-		}
-		else
-		{
-			q_des = Pf;
-		}
-
-		PositionControlVelocityForm();
-		MotorDrive();
-
-		if ((t_traj > t_total * 1000000) && (0.15 > fabs(q_des - QEIData.position)))
-		{
-			state = Idle;
-		}
-	break;
-	}
-	Pf_last = Pf;
 }
 
 void check_pe(){
