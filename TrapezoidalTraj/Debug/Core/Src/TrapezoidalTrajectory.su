@@ -1,0 +1,2 @@
+../Core/Src/TrapezoidalTrajectory.c:17:6:TrapezoidalTraj_PreCal	40	static
+../Core/Src/TrapezoidalTrajectory.c:28:6:TrapezoidalTraj_GetState	88	static
