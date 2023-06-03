@@ -22,11 +22,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "arm_math.h"
-#include "Encoder.h"
-#include "TrapezoidalTrajectory.h"
-#include "Controller.h"
-#include "LinearDrive.h"
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,18 +52,32 @@ uint64_t t_traj = 0;	  // [us] 		Time use in trajectory function
 float q_des;			  // [mm] 		Desire position calculated from trajectory
 float qdot_des;			  // [mm/s] 	Desire velocity calculated from trajectory
 float qddot_des;		  // [mm/s^2] 	Desire acceleration calculated from trajectory
-Traj  traj;
+float t_total;			  // [s]
+float t_acc;			  // [s]
 float Pi = 0;		  	  // [mm]
 float Pf = 0;			  // [mm]
 float Pf_last = 0;
-//// Time ---------------------------------------------------
+// Time ---------------------------------------------------
 uint64_t _micros = 0;
 // QEI ----------------------------------------------------
+typedef struct _QEIStructure
+{
+	int32_t data[2];
+	uint32_t timestamp[2];
+	float position;	// mm
+	float velocity;	// mm/s
+}QEIStructureTypeDef;
 QEIStructureTypeDef QEIData = {0};
 // PID ----------------------------------------------------
 float PulseWidthModulation = 0;
-PID Controller;
-// Stroke Safety ------------------------------------------
+float setposition = 0;
+float first_error = 0;
+float second_error = 0;
+float third_error = 0;
+float kp_position = 120;
+float ki_position = 0.05;
+float kd_position = 0;
+// Safety -------------------------------------------------
 uint8_t P_disallow = 0;
 uint8_t N_disallow = 0;
 // Set Home -----------------------------------------------
@@ -81,8 +90,14 @@ uint8_t 	pe1_st;
 uint8_t 	pe2_st;					//Photoelectric Sensor Value
 uint8_t 	pe3_st;
 //Variables ===============================================
-uint32_t Micro = 0;
+float freq = 10;		  // Hz
+float v_max = 1000.0;	  	  // mm/s
+float a = 2000.0;		  	  // mm/s^2
+uint16_t res = 8192;      // Resolution [pulse/revolution]
+float pulley_dia = 30.558;// mm
 //=========================================================
+uint32_t Micro = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -93,8 +108,17 @@ static void MX_TIM5_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
-//void SetHome();
-//void MotorDrive();
+inline uint64_t micros();
+
+void QEIEncoderPositionVelocity_Update();
+
+void SetHome();
+
+void TrapezoidalTraj_PreCal(int16_t start_pos, int16_t final_pos);
+void TrapezoidalTraj_GetState(int16_t start_pos, int16_t final_pos, uint32_t t_us);
+
+void PositionControlVelocityForm();
+void MotorDrive();
 
 void ControllerState();
 
@@ -144,9 +168,7 @@ int main(void)
   HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_1 || TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
-  Controller.Kp = 120;
-  Controller.Ki = 0.05;
-  Controller.Kd = 0;
+  TrapezoidalTraj_PreCal(0, 100);
 
   /* USER CODE END 2 */
 
@@ -157,7 +179,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  Micro = micros(&htim5);
+	  Micro = micros();
   }
   /* USER CODE END 3 */
 }
@@ -229,9 +251,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 0;
+  htim1.Init.Prescaler = 83;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 49999;
+  htim1.Init.Period = 9999;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -255,7 +277,7 @@ static void MX_TIM1_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
+  sConfigOC.Pulse = 5000;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
@@ -478,50 +500,160 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
 		_micros += 1000;
 
-		QEIEncoderPositionVelocity_Update(&htim3, &htim5);
+		QEIEncoderPositionVelocity_Update();
 		check_pe();
-		SetHome(&htim3, &htim1);
+		SetHome();
 		ControllerState();
 	}
 }
 
-//void MotorDrive()
-//{
-//	if(emer_pushed == 1){
-//		if (PulseWidthModulation >= 0)
-//		{
-//			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);
-//			N_disallow = 0;
-//			if (PulseWidthModulation > 8000)
-//			{
-//				PulseWidthModulation = 8000;
-//			}
-//
-//			if (pe2_st || P_disallow)
-//			{
-//				PulseWidthModulation = 0;
-//				P_disallow = 1;
-//			}
-//		}
-//		else
-//		{
-//			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
-//			P_disallow = 0;
-//			if (PulseWidthModulation < -8000)
-//			{
-//				PulseWidthModulation = -8000;
-//			}
-//
-//			if (pe3_st || P_disallow)
-//			{
-//				PulseWidthModulation = 0;
-//				N_disallow = 1;
-//			}
-//		}
-//
-//		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, fabs(PulseWidthModulation));
-//	}
-//}
+uint64_t micros()
+{
+	return __HAL_TIM_GET_COUNTER(&htim5)*0.01 + _micros;
+}
+
+
+void QEIEncoderPositionVelocity_Update()
+{
+	QEIData.timestamp[0] = micros();
+	uint32_t lastposition = __HAL_TIM_GET_COUNTER(&htim3);
+	QEIData.data[0] = lastposition;
+	if (lastposition > ((QEI_PERIOD/2) - 1))
+	{
+		QEIData.data[0] = lastposition - QEI_PERIOD;
+	}
+
+	// position calculation
+	QEIData.position = QEIData.data[0] * PI *  pulley_dia/res;
+
+	int32_t diffPosition = QEIData.data[0] - QEIData.data[1];
+	float diffTime = QEIData.timestamp[0] - QEIData.timestamp[1];
+
+	// unwrap
+	if (diffPosition > QEI_PERIOD>>1) diffPosition -= QEI_PERIOD;
+	if (diffPosition < -(QEI_PERIOD>>1)) diffPosition += QEI_PERIOD;
+
+	// velocity calculation
+	QEIData.velocity = (diffPosition * 1000000.0 * PI * pulley_dia)/(res * diffTime);
+
+	QEIData.data[1] = QEIData.data[0];
+	QEIData.timestamp[1] = QEIData.timestamp[0];
+}
+
+void TrapezoidalTraj_PreCal(int16_t start_pos, int16_t final_pos)
+{
+	if (start_pos != final_pos)
+	{
+		float s = final_pos - start_pos;
+
+		t_acc = v_max/a;
+		t_total = (pow(v_max,2)+a*fabs(s))/(a*v_max);
+	}
+}
+
+void TrapezoidalTraj_GetState(int16_t start_pos, int16_t final_pos, uint32_t t_us)
+{
+	if (start_pos != final_pos)
+	{
+		float t = t_us/1000000.0;
+
+		float s = final_pos - start_pos;
+		int8_t dir = 1;
+		if (s < 0)
+		{
+			dir = -1;
+		}
+
+		if (2*t_acc < t_total) // General Case
+		{
+			if (t <= t_acc)
+			{
+				qddot_des = dir*a;
+				qdot_des = dir*a*t;
+				q_des = start_pos + dir*(0.5*a*pow(t,2));
+			}
+			else if (t_acc < t && t < (t_total - t_acc))
+			{
+				qddot_des = 0;
+				qdot_des = dir*a*t_acc;
+				q_des = start_pos + dir*(0.5*a*pow(t_acc,2) + a*t_acc*(t - t_acc));
+			}
+			else if ((t_total - t_acc) <= t && t <= t_total)
+			{
+				qddot_des = -dir*a;
+				qdot_des = dir*a*(t_total - t);
+				q_des = start_pos + dir*(a*t_total*t+a*t_acc*t_total-a*pow(t_acc,2)-0.5*a*(pow(t,2)+pow(t_total,2)));
+			}
+		}
+		else	// Triangle Case
+		{
+			t_acc = 0.5*sqrt(4*fabs(s)/a);
+			t_total = 2*t_acc;
+
+			if (t <= t_acc)
+			{
+				qddot_des = dir*a;
+				qdot_des = dir*a*t;
+				q_des = start_pos + dir*(0.5*a*pow(t,2));
+			}
+			else if (t_acc < t && t < t_total)
+			{
+				qddot_des = -dir*a;
+				qdot_des = dir*a*(2*t_acc - t);
+				q_des = start_pos + dir*(2*a*t_acc*t-0.5*a*pow(t,2)-a*pow(t_acc,2));
+			}
+		}
+	}
+}
+
+void PositionControlVelocityForm()
+{
+	first_error = q_des - QEIData.position;
+
+	PulseWidthModulation += ((kp_position + ki_position + kd_position) * first_error) - ((kp_position + (2 * kd_position)) * second_error) + (kd_position * third_error);
+
+	third_error = second_error;
+
+	second_error = first_error;
+}
+
+void MotorDrive()
+{
+	if(emer_pushed == 1){
+		if (PulseWidthModulation >= 0)
+		{
+			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);
+			N_disallow = 0;
+			if (PulseWidthModulation > 8000)
+			{
+				PulseWidthModulation = 8000;
+			}
+
+			if (pe2_st || P_disallow)
+			{
+				PulseWidthModulation = 0;
+				P_disallow = 1;
+			}
+		}
+		else
+		{
+			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
+			P_disallow = 0;
+			if (PulseWidthModulation < -8000)
+			{
+				PulseWidthModulation = -8000;
+			}
+
+			if (pe3_st || P_disallow)
+			{
+				PulseWidthModulation = 0;
+				N_disallow = 1;
+			}
+		}
+
+		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, fabs(PulseWidthModulation));
+	}
+}
 
 void ControllerState()
 {
@@ -533,32 +665,32 @@ void ControllerState()
 		{
 		case Idle:
 			PulseWidthModulation = 0;
-			MotorDrive(&htim1);
+			MotorDrive();
 			Pi = QEIData.position;
 
 			if(Pf != Pf_last)
 			{
 				t_traj = 0;
-				TrapezoidalTraj_PreCal(Pi, Pf, &traj);
+				TrapezoidalTraj_PreCal(Pi, Pf);
 				state = Follow;
 			}
 		break;
 
 		case Follow:
 			t_traj = t_traj + 1000;
-			if (t_traj <= traj.t_total * 1000000)
+			if (t_traj <= t_total * 1000000)
 			{
-				TrapezoidalTraj_GetState(Pi, Pf, &traj, t_traj);
+				TrapezoidalTraj_GetState(Pi, Pf, t_traj);
 			}
 			else
 			{
 				q_des = Pf;
 			}
 
-			PositionControlVelocityForm(&Controller);
-			MotorDrive(&htim1);
+			PositionControlVelocityForm();
+			MotorDrive();
 
-			if (((t_traj > traj.t_total * 1000000) && (0.15 > fabs(q_des - QEIData.position))) || P_disallow || P_disallow)
+			if (((t_traj > t_total * 1000000) && (0.15 > fabs(q_des - QEIData.position))) || P_disallow || P_disallow)
 			{
 				state = Idle;
 			}
@@ -568,60 +700,60 @@ void ControllerState()
 	}
 }
 
-//void SetHome()
-//{
-//	static enum {Jog, Overcenter, Center, Recenter} SetHomeState = Jog;
-//
-//	if (SetHomeFlag)
-//	{
-//		switch (SetHomeState)
-//		{
-//		case Jog:
-//			PulseWidthModulation = 3000;
-//
-//			if (pe1_st)
-//			{
-//				__HAL_TIM_SET_COUNTER(&htim3, 0);
-//				SetHomeState = Overcenter;
-//			}
-//			else if (pe2_st)
-//			{
-//				__HAL_TIM_SET_COUNTER(&htim3, 0);
-//				SetHomeState = Recenter;
-//			}
-//			break;
-//		case Overcenter:
-//			PulseWidthModulation = 3000;
-//
-//			if (QEIData.position >= 20)
-//			{
-//				SetHomeState = Center;
-//			}
-//			break;
-//		case Center:
-//			PulseWidthModulation = -1000;
-//
-//			if (pe1_st)
-//			{
-//				PulseWidthModulation = 0;
-//				MotorDrive();
-//				__HAL_TIM_SET_COUNTER(&htim3, 0);
-//				SetHomeFlag = 0;
-//				SetHomeState = Jog;
-//			}
-//			break;
-//		case Recenter:
-//			PulseWidthModulation = -3000;
-//
-//			if (QEIData.position <= -330)
-//			{
-//				SetHomeState = Center;
-//			}
-//			break;
-//		}
-//		MotorDrive(&htim1);
-//	}
-//}
+void SetHome()
+{
+	static enum {Jog, Overcenter, Center, Recenter} SetHomeState = Jog;
+
+	if (SetHomeFlag)
+	{
+		switch (SetHomeState)
+		{
+		case Jog:
+			PulseWidthModulation = 3000;
+
+			if (pe1_st)
+			{
+				__HAL_TIM_SET_COUNTER(&htim3, 0);
+				SetHomeState = Overcenter;
+			}
+			else if (pe2_st)
+			{
+				__HAL_TIM_SET_COUNTER(&htim3, 0);
+				SetHomeState = Recenter;
+			}
+			break;
+		case Overcenter:
+			PulseWidthModulation = 3000;
+
+			if (QEIData.position >= 20)
+			{
+				SetHomeState = Center;
+			}
+			break;
+		case Center:
+			PulseWidthModulation = -1000;
+
+			if (pe1_st)
+			{
+				PulseWidthModulation = 0;
+				MotorDrive();
+				__HAL_TIM_SET_COUNTER(&htim3, 0);
+				SetHomeFlag = 0;
+				SetHomeState = Jog;
+			}
+			break;
+		case Recenter:
+			PulseWidthModulation = -3000;
+
+			if (QEIData.position <= -330)
+			{
+				SetHomeState = Center;
+			}
+			break;
+		}
+		MotorDrive();
+	}
+}
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {

@@ -1,7 +1,4 @@
-"./Core/Src/Controller.o"
 "./Core/Src/Encoder.o"
-"./Core/Src/LinearDrive.o"
-"./Core/Src/TrapezoidalTrajectory.o"
 "./Core/Src/main.o"
 "./Core/Src/stm32f4xx_hal_msp.o"
 "./Core/Src/stm32f4xx_it.o"
