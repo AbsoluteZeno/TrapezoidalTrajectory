@@ -11,7 +11,7 @@
 
 typedef struct _QEIStructure
 {
-	int32_t data[2];
+	int16_t data[2];
 	uint32_t timestamp[2];
 	float position;	// mm
 	float velocity;	// mm/s

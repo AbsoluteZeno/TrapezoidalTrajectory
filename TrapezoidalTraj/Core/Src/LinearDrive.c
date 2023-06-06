@@ -7,6 +7,7 @@
 #include "arm_math.h"
 #include "LinearDrive.h"
 #include "Encoder.h"
+#include "Controller.h"
 
 extern QEIStructureTypeDef QEIData;
 extern float PulseWidthModulation;
@@ -15,8 +16,16 @@ extern uint8_t 	pe1_st;
 extern uint8_t 	pe2_st;					//Photoelectric Sensor Value
 extern uint8_t 	pe3_st;
 extern uint8_t SetHomeFlag;
+extern uint8_t CenterFlag;
 extern uint8_t P_disallow;
 extern uint8_t N_disallow;
+extern uint8_t ControllerFinishedFollowFlag;
+extern PID Controller;
+extern float q_des;
+
+float Pcenter = 0;
+float Ncenter = 0;
+float Temp_pos = 0;
 
 void MotorDrive(TIM_HandleTypeDef* PWM_tim)
 {
@@ -30,9 +39,9 @@ void MotorDrive(TIM_HandleTypeDef* PWM_tim)
 				PulseWidthModulation = 8000;
 			}
 
-			if (pe2_st || P_disallow)
+			if ((pe2_st && (SetHomeFlag == 0)) || P_disallow)
 			{
-				PulseWidthModulation = 0;
+				__HAL_TIM_SET_COMPARE(PWM_tim,TIM_CHANNEL_1,0);
 				P_disallow = 1;
 			}
 		}
@@ -45,9 +54,9 @@ void MotorDrive(TIM_HandleTypeDef* PWM_tim)
 				PulseWidthModulation = -8000;
 			}
 
-			if (pe3_st || P_disallow)
+			if ((pe3_st && (SetHomeFlag == 0)) || N_disallow)
 			{
-				PulseWidthModulation = 0;
+				__HAL_TIM_SET_COMPARE(PWM_tim,TIM_CHANNEL_1,0);
 				N_disallow = 1;
 			}
 		}
@@ -58,13 +67,16 @@ void MotorDrive(TIM_HandleTypeDef* PWM_tim)
 
 void SetHome(TIM_HandleTypeDef* Encoder_tim, TIM_HandleTypeDef* PWM_tim)
 {
-	static enum {Jog, Overcenter, Center, Recenter} SetHomeState = Jog;
+	static enum {Jog, Overcenter, PCenter, UnderCenter, NCenter, Center,  Recenter, Setcenter} SetHomeState = Jog;
 
 	if (SetHomeFlag)
 	{
 		switch (SetHomeState)
 		{
 		case Jog:
+			Pcenter = 0;
+			Ncenter = 0;
+			Temp_pos = 0;
 			PulseWidthModulation = 3000;
 
 			if (pe1_st)
@@ -81,32 +93,66 @@ void SetHome(TIM_HandleTypeDef* Encoder_tim, TIM_HandleTypeDef* PWM_tim)
 		case Overcenter:
 			PulseWidthModulation = 3000;
 
-			if (QEIData.position >= 50)
+			if (QEIData.position >= 30)
 			{
+				SetHomeState = PCenter;
+			}
+			break;
+		case PCenter:
+			PulseWidthModulation = -2500;
+
+			if (pe1_st)
+			{
+				Pcenter = QEIData.position;
+				Temp_pos = Pcenter - 30;
+				SetHomeState = UnderCenter;
+			}
+			break;
+		case UnderCenter:
+			PulseWidthModulation = -3000;
+
+			if (QEIData.position <= Temp_pos)
+			{
+				SetHomeState = NCenter;
+			}
+			break;
+		case NCenter:
+			PulseWidthModulation = 2500;
+
+			if (pe1_st)
+			{
+				Ncenter = QEIData.position;
 				SetHomeState = Center;
 			}
 			break;
 		case Center:
-			PulseWidthModulation = -3000;
+			q_des = ((Pcenter - Ncenter)/2.0) + Ncenter;
+			PositionControlVelocityForm(&Controller);
 
-			if (pe1_st)
+			if (0.03 > fabs(q_des - QEIData.position))
 			{
 				PulseWidthModulation = 0;
 				MotorDrive(PWM_tim);
-				__HAL_TIM_SET_COUNTER(Encoder_tim, 0);
-				SetHomeFlag = 0;
-				SetHomeState = Jog;
+				SetHomeState = Setcenter;
 			}
+			break;
+		case Setcenter:
+			__HAL_TIM_SET_COUNTER(Encoder_tim, 0);
+			SetHomeFlag = 0;
+			SetHomeState = Jog;
+
 			break;
 		case Recenter:
 			PulseWidthModulation = -3000;
 
-			if (QEIData.position <= -300)
+			if (QEIData.position <= -320)
 			{
-				SetHomeState = Center;
+				SetHomeState = PCenter;
 			}
 			break;
 		}
 		MotorDrive(PWM_tim);
 	}
+
+
 }

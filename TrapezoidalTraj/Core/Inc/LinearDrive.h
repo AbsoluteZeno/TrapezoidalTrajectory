@@ -1,15 +1,15 @@
 /*
  * LinearDrive.h
  *
- *  Created on: Jun 2, 2023
+ *  Created on: Jun 3, 2023
  *      Author: AbsoluteZeno
  */
 
-#ifndef SRC_LINEARDRIVE_H_
-#define SRC_LINEARDRIVE_H_
+#ifndef INC_LINEARDRIVE_H_
+#define INC_LINEARDRIVE_H_
 #include "main.h"
 
 void MotorDrive(TIM_HandleTypeDef* PWM_tim);
 void SetHome(TIM_HandleTypeDef* Encoder_tim, TIM_HandleTypeDef* PWM_tim);
 
-#endif /* SRC_LINEARDRIVE_H_ */
+#endif /* INC_LINEARDRIVE_H_ */

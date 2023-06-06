@@ -27,7 +27,6 @@ void PositionControlVelocityForm(PID* controller)
 	PulseWidthModulation += ((kp_position + ki_position + kd_position) * first_error) - ((kp_position + (2 * kd_position)) * second_error) + (kd_position * third_error);
 
 	third_error = second_error;
-
 	second_error = first_error;
 }
 

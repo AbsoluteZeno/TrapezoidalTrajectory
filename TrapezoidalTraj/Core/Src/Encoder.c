@@ -23,10 +23,10 @@ void QEIEncoderPositionVelocity_Update(TIM_HandleTypeDef* Encoder_tim, TIM_Handl
 	QEIData.timestamp[0] = micros(Timer_tim);
 	uint32_t lastposition = __HAL_TIM_GET_COUNTER(Encoder_tim);
 	QEIData.data[0] = lastposition;
-	if (lastposition > ((QEI_PERIOD/2) - 1))
-	{
-		QEIData.data[0] = lastposition - QEI_PERIOD;
-	}
+//	if (lastposition > (QEI_PERIOD/2) - 1)
+//	{
+//		QEIData.data[0] = lastposition - QEI_PERIOD;
+//	}
 
 	// position calculation
 	QEIData.position = QEIData.data[0] * PI *  pulley_dia/res;

@@ -67,12 +67,14 @@ uint64_t _micros = 0;
 QEIStructureTypeDef QEIData = {0};
 // PID ----------------------------------------------------
 float PulseWidthModulation = 0;
+uint8_t ControllerFinishedFollowFlag = 0;
 PID Controller;
 // Stroke Safety ------------------------------------------
 uint8_t P_disallow = 0;
 uint8_t N_disallow = 0;
 // Set Home -----------------------------------------------
 uint8_t SetHomeFlag = 1;
+uint8_t CenterFlag = 0;
 // Elec ---------------------------------------------------
 // Emergency Switch
 uint8_t emer_pushed = 1;
@@ -93,9 +95,6 @@ static void MX_TIM5_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
-//void SetHome();
-//void MotorDrive();
-
 void ControllerState();
 
 void check_pe();
@@ -141,11 +140,11 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim5);
   HAL_TIM_Base_Start(&htim1);
-  HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_1 || TIM_CHANNEL_2);
+  HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
-  Controller.Kp = 120;
-  Controller.Ki = 0.05;
+  Controller.Kp = 150;
+  Controller.Ki = 1.7;
   Controller.Kd = 0;
 
   /* USER CODE END 2 */
@@ -157,7 +156,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  Micro = micros(&htim5);
   }
   /* USER CODE END 3 */
 }
@@ -441,16 +439,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PB1 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB2 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  /*Configure GPIO pins : PB1 PB2 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PB12 */
@@ -461,11 +453,20 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : PA9 */
   GPIO_InitStruct.Pin = GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
@@ -479,49 +480,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		_micros += 1000;
 
 		QEIEncoderPositionVelocity_Update(&htim3, &htim5);
+
 		check_pe();
 		SetHome(&htim3, &htim1);
 		ControllerState();
 	}
 }
-
-//void MotorDrive()
-//{
-//	if(emer_pushed == 1){
-//		if (PulseWidthModulation >= 0)
-//		{
-//			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);
-//			N_disallow = 0;
-//			if (PulseWidthModulation > 8000)
-//			{
-//				PulseWidthModulation = 8000;
-//			}
-//
-//			if (pe2_st || P_disallow)
-//			{
-//				PulseWidthModulation = 0;
-//				P_disallow = 1;
-//			}
-//		}
-//		else
-//		{
-//			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
-//			P_disallow = 0;
-//			if (PulseWidthModulation < -8000)
-//			{
-//				PulseWidthModulation = -8000;
-//			}
-//
-//			if (pe3_st || P_disallow)
-//			{
-//				PulseWidthModulation = 0;
-//				N_disallow = 1;
-//			}
-//		}
-//
-//		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, fabs(PulseWidthModulation));
-//	}
-//}
 
 void ControllerState()
 {
@@ -540,6 +504,7 @@ void ControllerState()
 			{
 				t_traj = 0;
 				TrapezoidalTraj_PreCal(Pi, Pf, &traj);
+				ControllerFinishedFollowFlag = 0;
 				state = Follow;
 			}
 		break;
@@ -558,9 +523,10 @@ void ControllerState()
 			PositionControlVelocityForm(&Controller);
 			MotorDrive(&htim1);
 
-			if (((t_traj > traj.t_total * 1000000) && (0.15 > fabs(q_des - QEIData.position))) || P_disallow || P_disallow)
+			if (((t_traj > traj.t_total * 1000000) && (0.15 > fabs(q_des - QEIData.position))) || P_disallow || N_disallow)
 			{
 				state = Idle;
+				ControllerFinishedFollowFlag = 1;
 			}
 		break;
 		}
@@ -568,72 +534,17 @@ void ControllerState()
 	}
 }
 
-//void SetHome()
-//{
-//	static enum {Jog, Overcenter, Center, Recenter} SetHomeState = Jog;
-//
-//	if (SetHomeFlag)
-//	{
-//		switch (SetHomeState)
-//		{
-//		case Jog:
-//			PulseWidthModulation = 3000;
-//
-//			if (pe1_st)
-//			{
-//				__HAL_TIM_SET_COUNTER(&htim3, 0);
-//				SetHomeState = Overcenter;
-//			}
-//			else if (pe2_st)
-//			{
-//				__HAL_TIM_SET_COUNTER(&htim3, 0);
-//				SetHomeState = Recenter;
-//			}
-//			break;
-//		case Overcenter:
-//			PulseWidthModulation = 3000;
-//
-//			if (QEIData.position >= 20)
-//			{
-//				SetHomeState = Center;
-//			}
-//			break;
-//		case Center:
-//			PulseWidthModulation = -1000;
-//
-//			if (pe1_st)
-//			{
-//				PulseWidthModulation = 0;
-//				MotorDrive();
-//				__HAL_TIM_SET_COUNTER(&htim3, 0);
-//				SetHomeFlag = 0;
-//				SetHomeState = Jog;
-//			}
-//			break;
-//		case Recenter:
-//			PulseWidthModulation = -3000;
-//
-//			if (QEIData.position <= -330)
-//			{
-//				SetHomeState = Center;
-//			}
-//			break;
-//		}
-//		MotorDrive(&htim1);
-//	}
-//}
-
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	if(GPIO_Pin == GPIO_PIN_12 && HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == 0)
-	{
-		emer_pushed = 0;
-		__HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,0);
-	}
-	if(GPIO_Pin == GPIO_PIN_12 && HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == 1)
-	{
-		emer_pushed = 1;
-	}
+    if(GPIO_Pin == GPIO_PIN_12 && HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == 0)
+    {
+        emer_pushed = 0;
+        __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,0);
+    }
+    if(GPIO_Pin == GPIO_PIN_12 && HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == 1)
+    {
+        emer_pushed = 1;
+    }
 }
 
 void check_pe(){
