@@ -27,6 +27,8 @@
 #include "Controller.h"
 #include "LinearDrive.h"
 #include "ModBusRTU.h"
+#include "joyStick.h"
+#include "holePositionsCartesian.h"
 
 /* USER CODE END Includes */
 
@@ -45,6 +47,9 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
+
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim5;
@@ -54,8 +59,8 @@ UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
-//Parameters ==============================================
-// Trajectory ---------------------------------------------
+//Parameters =================================================================================
+// Trajectory --------------------------------------------------------------------------------
 uint64_t t_traj = 0;	  // [us] 		Time use in trajectory function
 float q_des;			  // [mm] 		Desire position calculated from trajectory
 float qdot_des;			  // [mm/s] 	Desire velocity calculated from trajectory
@@ -64,33 +69,52 @@ Traj  traj;
 float Pi = 0;		  	  // [mm]
 float Pf = 0;			  // [mm]
 float Pf_last = 0;
-//// Time -------------------------------------------------
+//// Time -----------------------------------------------------------------------------------
 uint64_t _micros = 0;
-// QEI ----------------------------------------------------
+// QEI --------------------------------------------------------------------------------------
 QEIStructureTypeDef QEIData = {0};
-// PID ----------------------------------------------------
+// PID --------------------------------------------------------------------------------------
 float PulseWidthModulation = 0;
 uint8_t ControllerFinishedFollowFlag = 0;
 PID Controller;
-// Stroke Safety ------------------------------------------
+// Stroke Safety ----------------------------------------------------------------------------
 uint8_t P_disallow = 0;
 uint8_t N_disallow = 0;
-// Set Home -----------------------------------------------
+// Set Home ---------------------------------------------------------------------------------
 uint8_t SetHomeFlag = 1;
 uint8_t CenterFlag = 0;
-// Elec ---------------------------------------------------
+// Elec -------------------------------------------------------------------------------------
 // Emergency Switch
 uint8_t emer_pushed = 1;
 // Photoelectric sensor
 uint8_t 	pe1_st;
 uint8_t 	pe2_st;					//Photoelectric Sensor Value
 uint8_t 	pe3_st;
-// Modbus -------------------------------------------------
+//joy stick----------------------------------------
+uint16_t adcRawData[20];
+uint32_t IN0[10]; //Y
+uint32_t IN1[10]; //X
+uint8_t JoyStickSwitch = 0;
+uint32_t X_axis, Y_axis;
+uint32_t joystickXaxis, joystickYaxis;
+//nine holes of tray-------------------------------
+int Pickreference[2] = {0, 0};
+int Pickopposite[2] = {0, 0};
+float32_t PickrotationAngleRadian = 0;
+float32_t PickrotationAngleDegree = 0;
+float32_t PickTray9holes[18];
+int Placereference[2] = {0, 0};
+int Placeopposite[2] = {0, 0};
+float32_t PlacerotationAngleRadian = 0;
+float32_t PlacerotationAngleDegree = 0;
+float32_t PlaceTray9holes[18];
+uint8_t GoalReadyFlag = 0;
+// Modbus -----------------------------------------------------------------------------------
 ModbusHandleTypedef hmodbus;
-u16u8_t registerFrame[200];
-//Variables ===============================================
-uint32_t Micro = 0;
-//=========================================================
+u16u8_t registerFrame[70];
+//===========================================================================================
+
+float ref[2] = {100,100};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -102,9 +126,9 @@ static void MX_TIM5_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM11_Init(void);
+static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 void ControllerState();
-
 void check_pe();
 /* USER CODE END PFP */
 
@@ -147,6 +171,7 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM3_Init();
   MX_TIM11_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim5);
   HAL_TIM_Base_Start(&htim1);
@@ -160,8 +185,12 @@ int main(void)
   hmodbus.huart = &huart2;
   hmodbus.htim = &htim11;
   hmodbus.slaveAddress = 0x15;
-  hmodbus.RegisterSize =200;
+  hmodbus.RegisterSize =70;
   Modbus_init(&hmodbus, registerFrame);
+
+  //joy stick--------------------------
+  HAL_ADC_Start_DMA(&hadc1, adcRawData, 20);
+  //-----------------------------------
 
   /* USER CODE END 2 */
 
@@ -221,6 +250,67 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = ENABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 2;
+  hadc1.Init.DMAContinuousRequests = ENABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_56CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = 2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -478,11 +568,15 @@ static void MX_DMA_Init(void)
 
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
+  __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
   /* DMA1_Stream6_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
+  /* DMA2_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
 
 }
 
@@ -509,6 +603,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA4 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LD2_Pin PA11 */
   GPIO_InitStruct.Pin = LD2_Pin|GPIO_PIN_11;
@@ -557,11 +657,30 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
 		_micros += 1000;
 
+		Modbus_Protocal_Worker();
 		QEIEncoderPositionVelocity_Update(&htim3, &htim5);
 
 		check_pe();
 		SetHome(&htim3, &htim1);
+
+		HolePositionsCartesian(ref, 0.7854, PickTray9holes);
+
+		static uint8_t j = 0;
+		if (GoalReadyFlag && ControllerFinishedFollowFlag && (j <= 8))
+		{
+			Pf = PickTray9holes[2*j];
+			j++;
+		}
 		ControllerState();
+//		GetJoystickXYaxisValue();
+//		JoyStickControlCartesian();
+
+		static uint8_t i = 0;
+		if (i == 0)
+		{
+			registerFrame[0].U16 = 0b0101100101100001; //Ya 22881
+		}
+		i = (i + 1) % 2;
 	}
 }
 
@@ -574,6 +693,7 @@ void ControllerState()
 		switch(state)
 		{
 		case Idle:
+			ControllerFinishedFollowFlag = 1;
 			PulseWidthModulation = 0;
 			MotorDrive(&htim1);
 			Pi = QEIData.position;
@@ -604,7 +724,6 @@ void ControllerState()
 			if (((t_traj > traj.t_total * 1000000) && (0.15 > fabs(q_des - QEIData.position))) || P_disallow || N_disallow)
 			{
 				state = Idle;
-				ControllerFinishedFollowFlag = 1;
 			}
 		break;
 		}
@@ -625,7 +744,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     }
 }
 
-void check_pe(){
+void check_pe()
+{
 	// Photoelectric Sensor
 	if(emer_pushed == 1){
 		pe1_st = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_1);
