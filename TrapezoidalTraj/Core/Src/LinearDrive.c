@@ -15,7 +15,7 @@ extern uint8_t emer_pushed;
 extern uint8_t 	pe1_st;
 extern uint8_t 	pe2_st;					//Photoelectric Sensor Value
 extern uint8_t 	pe3_st;
-extern uint8_t SetHomeFlag;
+extern uint8_t SetHomeYFlag;
 extern uint8_t CenterFlag;
 extern uint8_t P_disallow;
 extern uint8_t N_disallow;
@@ -39,7 +39,7 @@ void MotorDrive(TIM_HandleTypeDef* PWM_tim)
 				PulseWidthModulation = 8000;
 			}
 
-			if ((pe2_st && (SetHomeFlag == 0)) || P_disallow)
+			if ((pe2_st && (SetHomeYFlag == 0)) || P_disallow)
 			{
 				__HAL_TIM_SET_COMPARE(PWM_tim,TIM_CHANNEL_1,0);
 				P_disallow = 1;
@@ -54,7 +54,7 @@ void MotorDrive(TIM_HandleTypeDef* PWM_tim)
 				PulseWidthModulation = -8000;
 			}
 
-			if ((pe3_st && (SetHomeFlag == 0)) || N_disallow)
+			if ((pe3_st && (SetHomeYFlag == 0)) || N_disallow)
 			{
 				__HAL_TIM_SET_COMPARE(PWM_tim,TIM_CHANNEL_1,0);
 				N_disallow = 1;
@@ -69,7 +69,7 @@ void SetHome(TIM_HandleTypeDef* Encoder_tim, TIM_HandleTypeDef* PWM_tim)
 {
 	static enum {Jog, Overcenter, PCenter, UnderCenter, NCenter, Center,  Recenter, Setcenter} SetHomeState = Jog;
 
-	if (SetHomeFlag)
+	if (SetHomeYFlag)
 	{
 		switch (SetHomeState)
 		{
@@ -78,6 +78,7 @@ void SetHome(TIM_HandleTypeDef* Encoder_tim, TIM_HandleTypeDef* PWM_tim)
 			Ncenter = 0;
 			Temp_pos = 0;
 			PulseWidthModulation = 3000;
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
 
 			if (pe1_st)
 			{
@@ -138,8 +139,9 @@ void SetHome(TIM_HandleTypeDef* Encoder_tim, TIM_HandleTypeDef* PWM_tim)
 			break;
 		case Setcenter:
 			__HAL_TIM_SET_COUNTER(Encoder_tim, 0);
-			SetHomeFlag = 0;
+			SetHomeYFlag = 0;
 			SetHomeState = Jog;
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
 
 			break;
 		case Recenter:

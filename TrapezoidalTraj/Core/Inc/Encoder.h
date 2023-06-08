@@ -11,10 +11,12 @@
 
 typedef struct _QEIStructure
 {
-	int16_t data[2];
+	int16_t pos[2];
+	int16_t vel[2];
 	uint32_t timestamp[2];
 	float position;	// mm
 	float velocity;	// mm/s
+	float accelaration; // mm/s^2
 }QEIStructureTypeDef;
 
 uint64_t micros(TIM_HandleTypeDef* Timer_tim);

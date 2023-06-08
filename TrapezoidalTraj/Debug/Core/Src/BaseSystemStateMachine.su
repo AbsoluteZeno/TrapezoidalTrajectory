@@ -1,0 +1,5 @@
+../Core/Src/BaseSystemStateMachine.c:49:6:BaseSystem_SetHome	4	static
+../Core/Src/BaseSystemStateMachine.c:79:6:BaseSystem_RunPointMode	8	static
+../Core/Src/BaseSystemStateMachine.c:111:6:BaseSystem_SetPickTray	8	static
+../Core/Src/BaseSystemStateMachine.c:175:6:BaseSystem_SetPlaceTray	8	static
+../Core/Src/BaseSystemStateMachine.c:238:6:BaseSystem_RuntrayMode	8	static

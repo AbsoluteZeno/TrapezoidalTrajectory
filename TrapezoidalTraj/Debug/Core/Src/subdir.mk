@@ -5,8 +5,11 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../Core/Src/BaseSystemStateMachine.c \
 ../Core/Src/Controller.c \
+../Core/Src/Effstatus.c \
 ../Core/Src/Encoder.c \
+../Core/Src/EndEffector.c \
 ../Core/Src/LinearDrive.c \
 ../Core/Src/ModBusRTU.c \
 ../Core/Src/TrapezoidalTrajectory.c \
@@ -20,8 +23,11 @@ C_SRCS += \
 ../Core/Src/system_stm32f4xx.c 
 
 OBJS += \
+./Core/Src/BaseSystemStateMachine.o \
 ./Core/Src/Controller.o \
+./Core/Src/Effstatus.o \
 ./Core/Src/Encoder.o \
+./Core/Src/EndEffector.o \
 ./Core/Src/LinearDrive.o \
 ./Core/Src/ModBusRTU.o \
 ./Core/Src/TrapezoidalTrajectory.o \
@@ -35,8 +41,11 @@ OBJS += \
 ./Core/Src/system_stm32f4xx.o 
 
 C_DEPS += \
+./Core/Src/BaseSystemStateMachine.d \
 ./Core/Src/Controller.d \
+./Core/Src/Effstatus.d \
 ./Core/Src/Encoder.d \
+./Core/Src/EndEffector.d \
 ./Core/Src/LinearDrive.d \
 ./Core/Src/ModBusRTU.d \
 ./Core/Src/TrapezoidalTrajectory.d \
@@ -57,7 +66,7 @@ Core/Src/%.o Core/Src/%.su: ../Core/Src/%.c Core/Src/subdir.mk
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/Controller.d ./Core/Src/Controller.o ./Core/Src/Controller.su ./Core/Src/Encoder.d ./Core/Src/Encoder.o ./Core/Src/Encoder.su ./Core/Src/LinearDrive.d ./Core/Src/LinearDrive.o ./Core/Src/LinearDrive.su ./Core/Src/ModBusRTU.d ./Core/Src/ModBusRTU.o ./Core/Src/ModBusRTU.su ./Core/Src/TrapezoidalTrajectory.d ./Core/Src/TrapezoidalTrajectory.o ./Core/Src/TrapezoidalTrajectory.su ./Core/Src/holePositionCartesian.d ./Core/Src/holePositionCartesian.o ./Core/Src/holePositionCartesian.su ./Core/Src/joyStick.d ./Core/Src/joyStick.o ./Core/Src/joyStick.su ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/stm32f4xx_hal_msp.d ./Core/Src/stm32f4xx_hal_msp.o ./Core/Src/stm32f4xx_hal_msp.su ./Core/Src/stm32f4xx_it.d ./Core/Src/stm32f4xx_it.o ./Core/Src/stm32f4xx_it.su ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f4xx.d ./Core/Src/system_stm32f4xx.o ./Core/Src/system_stm32f4xx.su
+	-$(RM) ./Core/Src/BaseSystemStateMachine.d ./Core/Src/BaseSystemStateMachine.o ./Core/Src/BaseSystemStateMachine.su ./Core/Src/Controller.d ./Core/Src/Controller.o ./Core/Src/Controller.su ./Core/Src/Effstatus.d ./Core/Src/Effstatus.o ./Core/Src/Effstatus.su ./Core/Src/Encoder.d ./Core/Src/Encoder.o ./Core/Src/Encoder.su ./Core/Src/EndEffector.d ./Core/Src/EndEffector.o ./Core/Src/EndEffector.su ./Core/Src/LinearDrive.d ./Core/Src/LinearDrive.o ./Core/Src/LinearDrive.su ./Core/Src/ModBusRTU.d ./Core/Src/ModBusRTU.o ./Core/Src/ModBusRTU.su ./Core/Src/TrapezoidalTrajectory.d ./Core/Src/TrapezoidalTrajectory.o ./Core/Src/TrapezoidalTrajectory.su ./Core/Src/holePositionCartesian.d ./Core/Src/holePositionCartesian.o ./Core/Src/holePositionCartesian.su ./Core/Src/joyStick.d ./Core/Src/joyStick.o ./Core/Src/joyStick.su ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/stm32f4xx_hal_msp.d ./Core/Src/stm32f4xx_hal_msp.o ./Core/Src/stm32f4xx_hal_msp.su ./Core/Src/stm32f4xx_it.d ./Core/Src/stm32f4xx_it.o ./Core/Src/stm32f4xx_it.su ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f4xx.d ./Core/Src/system_stm32f4xx.o ./Core/Src/system_stm32f4xx.su
 
 .PHONY: clean-Core-2f-Src
 

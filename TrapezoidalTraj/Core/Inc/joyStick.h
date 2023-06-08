@@ -12,7 +12,7 @@
 #include "stm32f4xx_hal.h"
 
 uint64_t micros();
-void GetJoystickXYaxisValue(uint8_t* ptrx, uint8_t* ptry);
+void GetJoystickXYaxisValue(float* ptrx, float* ptry);
 void JoyStickControlCartesian();
 
 #endif /* INC_JOYSTICK_H_ */

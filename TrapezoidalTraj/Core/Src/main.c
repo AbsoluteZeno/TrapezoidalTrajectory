@@ -29,6 +29,9 @@
 #include "ModBusRTU.h"
 #include "joyStick.h"
 #include "holePositionsCartesian.h"
+#include "EndEffector.h"
+#include "Effstatus.h"
+#include "BaseSystemStateMachine.h"
 
 /* USER CODE END Includes */
 
@@ -49,6 +52,9 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
+
+I2C_HandleTypeDef hi2c1;
+DMA_HandleTypeDef hdma_i2c1_rx;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
@@ -81,9 +87,24 @@ PID Controller;
 uint8_t P_disallow = 0;
 uint8_t N_disallow = 0;
 // Set Home ---------------------------------------------------------------------------------
-uint8_t SetHomeFlag = 1;
+uint8_t SetHomeYFlag = 1;
 uint8_t CenterFlag = 0;
 // Elec -------------------------------------------------------------------------------------
+//EndEffector
+uint8_t 	softReset_cmd[] = {0x00,0xFF,0x55,0xAA};
+uint8_t		emerMode_cmd[]  = {0xF1,0x99,0x99,0x99};
+uint8_t		exitEmer_cmd[]  = {0xE5,0x7A,0xFF,0x81};
+uint8_t 	testMode_cmd[]  = {0x01,0x10,0x99,0x99};
+uint8_t 	exitTest_cmd[]  = {0x01,0x00,0x99,0x99};
+uint8_t		runMode_cmd[]   = {0x10,0x13,0x99,0x99};
+uint8_t		exitRun_cmd[]   = {0x10,0x8C,0x99,0x99};
+uint8_t		pickup_cmd[]    = {0x10,0x5A,0x99,0x99};
+uint8_t		place_cmd[]     = {0x10,0x69,0x99,0x99};
+uint8_t 	effst[1];
+uint8_t     readFlag 		= 0;
+uint8_t 	writeFlag 		= 0;
+uint8_t 	effstatus[1];
+uint8_t EndEffectorSoftResetFlag = 1;
 // Emergency Switch
 uint8_t emer_pushed = 1;
 // Photoelectric sensor
@@ -98,13 +119,13 @@ uint8_t JoyStickSwitch = 0;
 uint32_t X_axis, Y_axis;
 uint32_t joystickXaxis, joystickYaxis;
 //nine holes of tray-------------------------------
-int Pickreference[2] = {0, 0};
-int Pickopposite[2] = {0, 0};
+float Pickreference[2] = {0, 0};
+float Pickopposite[2] = {0, 0};
 float32_t PickrotationAngleRadian = 0;
 float32_t PickrotationAngleDegree = 0;
 float32_t PickTray9holes[18];
-int Placereference[2] = {0, 0};
-int Placeopposite[2] = {0, 0};
+float Placereference[2] = {0, 0};
+float Placeopposite[2] = {0, 0};
 float32_t PlacerotationAngleRadian = 0;
 float32_t PlacerotationAngleDegree = 0;
 float32_t PlaceTray9holes[18];
@@ -112,9 +133,13 @@ uint8_t GoalReadyFlag = 0;
 // Modbus -----------------------------------------------------------------------------------
 ModbusHandleTypedef hmodbus;
 u16u8_t registerFrame[70];
+// Base System ------------------------------------------------------------------------------
+uint8_t SetPickTrayFlag = 0;
+uint8_t SetPlaceTrayFlag = 0;
+uint8_t SetHomeFlag = 0;
+uint8_t RunTrayFlag = 0;
+uint8_t RunPointFlag = 0;
 //===========================================================================================
-
-float ref[2] = {100,100};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -127,6 +152,7 @@ static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM11_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 void ControllerState();
 void check_pe();
@@ -172,10 +198,13 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM11_Init();
   MX_ADC1_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim5);
   HAL_TIM_Base_Start(&htim1);
   HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
+
+  //eff_write(testMode_cmd);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
   Controller.Kp = 150;
@@ -201,7 +230,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
   }
   /* USER CODE END 3 */
 }
@@ -261,7 +289,7 @@ static void MX_ADC1_Init(void)
 {
 
   /* USER CODE BEGIN ADC1_Init 0 */
-
+//#define break while(1){}
   /* USER CODE END ADC1_Init 0 */
 
   ADC_ChannelConfTypeDef sConfig = {0};
@@ -310,6 +338,40 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
 
 }
 
@@ -571,6 +633,9 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
   /* DMA1_Stream6_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
@@ -597,6 +662,9 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, LD2_Pin|GPIO_PIN_11, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -629,6 +697,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PB13 PB14 PB15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
   /*Configure GPIO pin : PA9 */
   GPIO_InitStruct.Pin = GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
@@ -656,31 +731,55 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	if(htim == &htim5)
 	{
 		_micros += 1000;
-
-		Modbus_Protocal_Worker();
 		QEIEncoderPositionVelocity_Update(&htim3, &htim5);
 
 		check_pe();
 		SetHome(&htim3, &htim1);
 
-		HolePositionsCartesian(ref, 0.7854, PickTray9holes);
-
-		static uint8_t j = 0;
-		if (GoalReadyFlag && ControllerFinishedFollowFlag && (j <= 8))
+		if (EndEffectorSoftResetFlag)
 		{
-			Pf = PickTray9holes[2*j];
-			j++;
+			eff_write(softReset_cmd);
+			EndEffectorSoftResetFlag = 0;
 		}
-		ControllerState();
-//		GetJoystickXYaxisValue();
-//		JoyStickControlCartesian();
+
+		if ((SetPickTrayFlag == 0) && (SetPlaceTrayFlag == 0) && (SetHomeFlag == 0) && (RunTrayFlag == 0) && (RunPointFlag == 0))
+		{
+			switch (registerFrame[1].U16)
+			{
+			case 0b00001:
+				SetPickTrayFlag = 1;
+			break;
+			case 0b00010:
+				SetPlaceTrayFlag = 1;
+			break;
+			case 0b00100:
+				SetHomeFlag = 1;
+			break;
+			case 0b01000:
+				RunTrayFlag = 1;
+			break;
+			case 0b10000:
+				RunPointFlag = 1;
+			break;
+			}
+		}
+
+		BaseSystem_SetPickTray();
+		BaseSystem_SetPlaceTray();
+		BaseSystem_SetHome();
+		BaseSystem_RuntrayMode();
+		BaseSystem_RunPointMode();
+
+
 
 		static uint8_t i = 0;
 		if (i == 0)
 		{
 			registerFrame[0].U16 = 0b0101100101100001; //Ya 22881
+			eff_st();
+			Modbus_Protocal_Worker();
 		}
-		i = (i + 1) % 2;
+		i = (i + 1) % 100;
 	}
 }
 
@@ -688,7 +787,7 @@ void ControllerState()
 {
 	static enum {Idle, Follow} state = Idle;
 
-	if (SetHomeFlag == 0)
+	if (SetHomeYFlag == 0)
 	{
 		switch(state)
 		{
@@ -704,6 +803,7 @@ void ControllerState()
 				TrapezoidalTraj_PreCal(Pi, Pf, &traj);
 				ControllerFinishedFollowFlag = 0;
 				state = Follow;
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
 			}
 		break;
 
@@ -724,6 +824,7 @@ void ControllerState()
 			if (((t_traj > traj.t_total * 1000000) && (0.15 > fabs(q_des - QEIData.position))) || P_disallow || N_disallow)
 			{
 				state = Idle;
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
 			}
 		break;
 		}
@@ -731,28 +832,6 @@ void ControllerState()
 	}
 }
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-    if(GPIO_Pin == GPIO_PIN_12 && HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == 0)
-    {
-        emer_pushed = 0;
-        __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,0);
-    }
-    if(GPIO_Pin == GPIO_PIN_12 && HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == 1)
-    {
-        emer_pushed = 1;
-    }
-}
-
-void check_pe()
-{
-	// Photoelectric Sensor
-	if(emer_pushed == 1){
-		pe1_st = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_1);
-		pe2_st = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_2);
-		pe3_st = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9);
-	}
-}
 /* USER CODE END 4 */
 
 /**
