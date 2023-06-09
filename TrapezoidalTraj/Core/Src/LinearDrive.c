@@ -38,11 +38,9 @@ void MotorDrive(TIM_HandleTypeDef* PWM_tim)
 			{
 				PulseWidthModulation = 8000;
 			}
-
-			if ((pe2_st && (SetHomeYFlag == 0)) || P_disallow)
+			else if (PulseWidthModulation < 1000)
 			{
-				__HAL_TIM_SET_COMPARE(PWM_tim,TIM_CHANNEL_1,0);
-				P_disallow = 1;
+				PulseWidthModulation = 0;
 			}
 		}
 		else
@@ -85,7 +83,7 @@ void SetHome(TIM_HandleTypeDef* Encoder_tim, TIM_HandleTypeDef* PWM_tim)
 				__HAL_TIM_SET_COUNTER(Encoder_tim, 0);
 				SetHomeState = Overcenter;
 			}
-			else if (pe2_st)
+			else if (pe3_st)
 			{
 				__HAL_TIM_SET_COUNTER(Encoder_tim, 0);
 				SetHomeState = Recenter;

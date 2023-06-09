@@ -25,6 +25,7 @@ void QEIEncoderPositionVelocity_Update(TIM_HandleTypeDef* Encoder_tim, TIM_Handl
 	QEIData.timestamp[0] = micros(Timer_tim);
 	uint32_t lastposition = __HAL_TIM_GET_COUNTER(Encoder_tim);
 	QEIData.pos[0] = lastposition;
+	QEIData.pos[0] = -QEIData.pos[0];
 //	if (lastposition > (QEI_PERIOD/2))
 //	{
 //		QEIData.pos[0] = lastposition - QEI_PERIOD - 1;

@@ -11,8 +11,8 @@ extern float q_des;
 extern float qdot_des;
 extern float qddot_des;
 
-float v_max = 1000.0;	  	  // mm/s
-float a = 1200.0;		  	  // mm/s^
+float v_max = 9000.0;	  	  // mm/s
+float a = 2000.0;		  	  // mm/s^
 
 void TrapezoidalTraj_PreCal(int16_t start_pos, int16_t final_pos, Traj* trajectory)
 {
@@ -83,3 +83,43 @@ void TrapezoidalTraj_GetState(int16_t start_pos, int16_t final_pos, Traj* trajec
 	}
 }
 
+void QuinticTraj_PreCal(int16_t start_pos, int16_t final_pos, Traj* trajectory)
+{
+	if (start_pos != final_pos)
+	{
+		float s = final_pos - start_pos;
+
+		trajectory->t_acc = 0;
+		float t_total_v = (15.0*fabs(s))/v_max;
+		float t_total_a = 0.5*sqrt((40*sqrt(3)*fabs(s))/(3*a));
+
+		if(t_total_v > t_total_a)
+		{
+			trajectory->t_total = t_total_v;
+		}
+		else
+		{
+			trajectory->t_total = t_total_a;
+		}
+	}
+}
+
+void QuinticTraj_GetState(int16_t start_pos, int16_t final_pos, Traj* trajectory, uint32_t t_us)
+{
+	if (start_pos != final_pos)
+	{
+		float t = t_us/1000000.0;
+
+		float t_total = trajectory->t_total;
+		float s = final_pos - start_pos;
+
+		float C5 = 6*s/pow(t_total,5);
+		float C4 = -15*s/pow(t_total,4);
+		float C3 = 10*s/pow(t_total,3);
+		float C0 = start_pos;
+
+		q_des = C5*pow(t,5) + C4*pow(t,4) + C3*pow(t,3) + C0;
+		qdot_des = 5*C5*pow(t,4) + 4*C4*pow(t,3) + 3*C3*pow(t,2);
+		qddot_des = 20*C5*pow(t,3) + 12*C4*pow(t,2) + 6*C3*t;
+	}
+}

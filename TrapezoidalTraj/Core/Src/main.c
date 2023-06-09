@@ -209,8 +209,8 @@ int main(void)
   //eff_write(testMode_cmd);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
-  Controller.Kp = 150;
-  Controller.Ki = 2.5;
+  Controller.Kp = 1100;
+  Controller.Ki = 9.25;
   Controller.Kd = 0;
 
   hmodbus.huart = &huart2;
@@ -223,24 +223,24 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc1, adcRawData, 20);
   //-----------------------------------
 
-	PickTray9holes[1] = 300;
-	PlaceTray9holes[1] = -300;
-	PickTray9holes[3] = 300;
-	PlaceTray9holes[3] = -300;
-	PickTray9holes[5] = 200;
-	PlaceTray9holes[5] = -200;
-	PickTray9holes[7] = 200;
-	PlaceTray9holes[7] = -200;
-	PickTray9holes[9] = 100;
-	PlaceTray9holes[9] = -100;
-	PickTray9holes[11] = 100;
-	PlaceTray9holes[11] = -100;
-	PickTray9holes[13] = 100;
-	PlaceTray9holes[13] = -100;
-	PickTray9holes[15] = 200;
-	PlaceTray9holes[15] = -300;
-	PickTray9holes[17] = 300;
-	PlaceTray9holes[17] = -50;
+//	PickTray9holes[1] = 300;
+//	PlaceTray9holes[1] = -300;
+//	PickTray9holes[3] = 300;
+//	PlaceTray9holes[3] = -300;
+//	PickTray9holes[5] = 200;
+//	PlaceTray9holes[5] = -200;
+//	PickTray9holes[7] = 200;
+//	PlaceTray9holes[7] = -200;
+//	PickTray9holes[9] = 100;
+//	PlaceTray9holes[9] = -100;
+//	PickTray9holes[11] = 100;
+//	PlaceTray9holes[11] = -100;
+//	PickTray9holes[13] = 100;
+//	PlaceTray9holes[13] = -100;
+//	PickTray9holes[15] = 200;
+//	PlaceTray9holes[15] = -300;
+//	PickTray9holes[17] = 300;
+//	PlaceTray9holes[17] = -50;
 
 //  	PickTray9holes[1] = 300;
 //  	PlaceTray9holes[1] = -300;
@@ -781,26 +781,23 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			EndEffectorSoftResetFlag = 0;
 		}
 
-		if ((SetPickTrayFlag == 0) && (SetPlaceTrayFlag == 0) && (SetHomeFlag == 0) && (RunTrayFlag == 0) && (RunPointFlag == 0))
+		switch (registerFrame[1].U16)
 		{
-			switch (registerFrame[1].U16)
-			{
-			case 0b00001:
-				SetPickTrayFlag = 1;
-			break;
-			case 0b00010:
-				SetPlaceTrayFlag = 1;
-			break;
-			case 0b00100:
-				SetHomeFlag = 1;
-			break;
-			case 0b01000:
-				RunTrayFlag = 1;
-			break;
-			case 0b10000:
-				RunPointFlag = 1;
-			break;
-			}
+		case 0b00001:
+			SetPickTrayFlag = 1;
+		break;
+		case 0b00010:
+			SetPlaceTrayFlag = 1;
+		break;
+		case 0b00100:
+			SetHomeFlag = 1;
+		break;
+		case 0b01000:
+			RunTrayFlag = 1;
+		break;
+		case 0b10000:
+			RunPointFlag = 1;
+		break;
 		}
 
 		if (emer_pushed)
@@ -816,10 +813,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		if (i == 0)
 		{
 			registerFrame[0].U16 = 0b0101100101100001; //Ya 22881
-			eff_st();
+//			eff_st();
 			Modbus_Protocal_Worker();
 		}
-		i = (i + 1) % 100;
+		i = (i + 1) % 200;
 	}
 }
 
@@ -841,7 +838,7 @@ void ControllerState()
 			{
 				t_traj = 0;
 				SteadyStateFlag = 0;
-				TrapezoidalTraj_PreCal(Pi, Pf, &traj);
+				QuinticTraj_PreCal(Pi, Pf, &traj);
 				ControllerFinishedFollowFlag = 0;
 				state = Follow;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
@@ -852,7 +849,7 @@ void ControllerState()
 			t_traj = t_traj + 1000;
 			if (t_traj <= traj.t_total * 1000000)
 			{
-				TrapezoidalTraj_GetState(Pi, Pf, &traj, t_traj);
+				QuinticTraj_GetState(Pi, Pf, &traj, t_traj);
 			}
 			else
 			{
@@ -868,7 +865,7 @@ void ControllerState()
 				SteadyStateFlag = 1;
 			}
 
-			if (SteadyStateFlag && (t_traj > t_total_actual) && (0.15 > fabs(q_des - QEIData.position)))
+			if (SteadyStateFlag && (t_traj > t_total_actual) && (0.05 > fabs(q_des - QEIData.position)) || (P_disallow) || (N_disallow))
 			{
 				state = Idle;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);

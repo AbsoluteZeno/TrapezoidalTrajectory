@@ -46,6 +46,12 @@ extern uint8_t place_cmd[];
 
 extern void ControllerState();
 
+uint8_t runpointXFlag = 0;
+int Pickreference_last[2] = {0, 0};
+int Pickopposite_last[2] = {0, 0};
+int Placereference_last[2] = {0, 0};
+int Placeopposite_last[2] = {0, 0};
+
 void BaseSystem_SetHome()
 {
 	static enum {idle, sethome} state = idle;
@@ -88,13 +94,18 @@ void BaseSystem_RunPointMode()
 			registerFrame[1].U16 = 0b00000000; //bit 4 run point mode = 0 //base system status
 			registerFrame[16].U16 = 0b00100000; //bit 5 go point = 1 //y-axis moving status
 			state = RunPointMode;
+			runpointXFlag = 1;
 		break;
 		case RunPointMode:
 			//set point of XY-axis
-			registerFrame[65].U16 = registerFrame[48].U16; //position -1400 to 1400
-			registerFrame[66].U16 = 2500; //velocity max 3000
-			registerFrame[67].U16 = 1; //acceleration 1 2 3
-			Pf = registerFrame[49].U16/10.0;
+			if (runpointXFlag)
+			{
+				registerFrame[65].U16 = registerFrame[48].U16; //position -1400 to 1400
+				registerFrame[66].U16 = 2500; //velocity max 3000
+				registerFrame[67].U16 = 1; //acceleration 1 2 3
+				Pf = registerFrame[49].U16/10.0;
+				runpointXFlag = 0;
+			}
 			ControllerState();
 
 			if(ControllerFinishedFollowFlag && (registerFrame[64].U16 == 0))
@@ -112,9 +123,6 @@ void BaseSystem_SetPickTray()
 {
 	static enum {Prepare, GetFirstPoint, GetSecondPoint} SetPickTrayState = Prepare;
 
-	static int Pickreference_last[2] = {0, 0};
-	static int Pickopposite_last[2] = {0, 0};
-
 	if (SetPickTrayFlag)
 	{
 		switch(SetPickTrayState)
@@ -125,6 +133,10 @@ void BaseSystem_SetPickTray()
 			SetPickTrayState = GetFirstPoint;
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
 			eff_write(testMode_cmd);
+			memset(Pickreference, 0, sizeof(Pickreference));
+			memset(Pickopposite, 0, sizeof(Pickopposite));
+			memset(Pickreference_last, 0, sizeof(Pickreference_last));
+			memset(Pickopposite_last, 0, sizeof(Pickopposite_last));
 		break;
 		case GetFirstPoint:
 			GetJoystickXYaxisValue(&Pickreference[0], &Pickreference[1]);
@@ -144,10 +156,10 @@ void BaseSystem_SetPickTray()
 			{
 
 				SetPickTrayState = Prepare;
-				SetTwoPointsForCalibrate(Pickreference[0], Pickreference[1], Pickopposite[0], Pickopposite[1], 0);
+				SetTwoPointsForCalibrate(Pickreference, Pickreference+1, Pickopposite, Pickopposite+1, 0);
 				registerFrame[32].U16 = (int)(Pickreference[0]*10);
 				registerFrame[33].U16 = (int)(Pickreference[1]*10);
-				registerFrame[34].U16 = (int)(PickrotationAngleRadian*100);
+				registerFrame[34].U16 = (int)(PickrotationAngleDegree*100);
 				registerFrame[16].U16 = 0b000000;
 				SetPickTrayFlag = 0;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
@@ -176,9 +188,6 @@ void BaseSystem_SetPlaceTray()
 {
 	static enum {Prepare, GetFirstPoint, GetSecondPoint} SetPlaceTrayState = Prepare;
 
-	static int Placereference_last[2] = {0, 0};
-	static int Placeopposite_last[2] = {0, 0};
-
 	if(SetPlaceTrayFlag)
 	{
 		switch(SetPlaceTrayState)
@@ -189,6 +198,10 @@ void BaseSystem_SetPlaceTray()
 			SetPlaceTrayState = GetFirstPoint;
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
 			eff_write(testMode_cmd);
+			memset(Placereference, 0, sizeof(Placereference));
+			memset(Placeopposite, 0, sizeof(Placeopposite));
+			memset(Placereference_last, 0, sizeof(Placereference_last));
+			memset(Placeopposite_last, 0, sizeof(Placeopposite_last));
 		break;
 		case GetFirstPoint:
 			GetJoystickXYaxisValue(&Placereference[0], &Placereference[1]);
@@ -208,10 +221,10 @@ void BaseSystem_SetPlaceTray()
 			{
 
 				SetPlaceTrayState = Prepare;
-				SetTwoPointsForCalibrate(Placereference[0], Placereference[1], Placeopposite[0], Placeopposite[1], 1);
+				SetTwoPointsForCalibrate(Placereference, Placereference+1, Placeopposite, Placeopposite+1, 1);
 				registerFrame[35].U16 = (int)(Placereference[0]*10);
 				registerFrame[36].U16 = (int)(Placereference[1]*10);
-				registerFrame[37].U16 = (int)(PlacerotationAngleRadian*100);
+				registerFrame[37].U16 = (int)(PlacerotationAngleDegree*100);
 				registerFrame[16].U16 = 0b000000;
 				SetPlaceTrayFlag = 0;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
@@ -249,10 +262,9 @@ void BaseSystem_RuntrayMode()
 			{
 			case HolesCalculate:
 				registerFrame[1].U16 = 0b00000;
-				GoalReadyFlag = 1;
-//				GoalReadyFlag = 0;
-//				HolePositionsCartesian(Pickreference, PickrotationAngleRadian, PickTray9holes);
-//				HolePositionsCartesian(Placereference, PlacerotationAngleRadian, PlaceTray9holes);
+				GoalReadyFlag = 0;
+				HolePositionsCartesian(Pickreference, PickrotationAngleRadian, PickTray9holes);
+				HolePositionsCartesian(Placereference, PlacerotationAngleRadian, PlaceTray9holes);
 				if (GoalReadyFlag)
 				{
 					RunTrayState = GoPick;
