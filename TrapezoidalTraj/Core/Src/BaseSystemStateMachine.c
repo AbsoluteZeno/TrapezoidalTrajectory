@@ -46,7 +46,7 @@ extern uint8_t place_cmd[];
 
 extern void ControllerState();
 
-uint8_t runpointXFlag = 0;
+uint8_t runXFlag = 0;
 int Pickreference_last[2] = {0, 0};
 int Pickopposite_last[2] = {0, 0};
 int Placereference_last[2] = {0, 0};
@@ -67,15 +67,15 @@ void BaseSystem_SetHome()
 		break;
 		case sethome:
 			//set home x-axis
-			registerFrame[65].U16 = 0b00000001;
+			registerFrame[64].U16 = 0b00000001;
 			//set home y-axis
 			SetHomeYFlag = 1;
-			registerFrame[16].U16 = 0b00000000;//bit 2 set home = 0 //y-axis moving status
 
-			if(registerFrame[64].U16 == 0b00000000)
+			if((registerFrame[64].U16 == 0b00000000) && (SetHomeYFlag == 0))
 			{
 				state = idle;
 				SetHomeFlag = 0;
+				registerFrame[16].U16 = 0b00000000;//bit 2 set home = 0 //y-axis moving status
 			}
 		break;
 		}
@@ -94,17 +94,18 @@ void BaseSystem_RunPointMode()
 			registerFrame[1].U16 = 0b00000000; //bit 4 run point mode = 0 //base system status
 			registerFrame[16].U16 = 0b00100000; //bit 5 go point = 1 //y-axis moving status
 			state = RunPointMode;
-			runpointXFlag = 1;
+			runXFlag = 1;
 		break;
 		case RunPointMode:
 			//set point of XY-axis
-			if (runpointXFlag)
+			if (runXFlag)
 			{
 				registerFrame[65].U16 = registerFrame[48].U16; //position -1400 to 1400
-				registerFrame[66].U16 = 2500; //velocity max 3000
+				registerFrame[66].U16 = 3000; //velocity max 3000
 				registerFrame[67].U16 = 1; //acceleration 1 2 3
+				registerFrame[64].U16 = 2; //Run
 				Pf = registerFrame[49].U16/10.0;
-				runpointXFlag = 0;
+				runXFlag = 0;
 			}
 			ControllerState();
 
@@ -273,14 +274,20 @@ void BaseSystem_RuntrayMode()
 				}
 			break;
 			case GoPick:
-				// Run X-Axis to Pick Tray
-				registerFrame[65].U16 = (int)(PickTray9holes[2*i]*10); //position -1400 to 1400
-				registerFrame[66].U16 = 3000; //velocity max 3000
-				registerFrame[67].U16 = 1; //acceleration 1 2 3
+				if (runXFlag)
+				{
+					// Run X
+					registerFrame[65].U16 = (int)(PickTray9holes[2*i]*10); //position -1400 to 1400
+					registerFrame[66].U16 = 3000; //velocity max 3000
+					registerFrame[67].U16 = 1; //acceleration 1 2 3
+					registerFrame[64].U16 = 2; //Run
 
-				// Run Y-Axis to Pick Tray
-				registerFrame[16].U16 = 0b001000;	// Y-Axis Moving status -> GoPick
-				Pf = PickTray9holes[2*i + 1];
+					// Run Y
+					registerFrame[16].U16 = 0b001000;	// Y-Axis Moving status -> GoPick
+					Pf = PickTray9holes[2*i + 1];
+
+					runXFlag = 0;
+				}
 				ControllerState();
 
 				if(ControllerFinishedFollowFlag && (registerFrame[64].U16 == 0))
@@ -299,14 +306,20 @@ void BaseSystem_RuntrayMode()
 				}
 			break;
 			case GoPlace:
-				// Run X-Axis to Pick Tray
-				registerFrame[65].U16 = (int)(PlaceTray9holes[2*i]*10); //position -1400 to 1400
-				registerFrame[66].U16 = 3000; //velocity max 3000
-				registerFrame[67].U16 = 1; //acceleration 1 2 3
+				if (runXFlag)
+				{
+					// Run X
+					registerFrame[65].U16 = (int)(PlaceTray9holes[2*i]*10); //position -1400 to 1400
+					registerFrame[66].U16 = 3000; //velocity max 3000
+					registerFrame[67].U16 = 1; //acceleration 1 2 3
+					registerFrame[64].U16 = 2; //Run
 
-				// Run Y-Axis to Pick Tray
-				registerFrame[16].U16 = 0b010000;	// Y-Axis Moving status -> GoPlace
-				Pf = PlaceTray9holes[2*i + 1];
+					// Run Y
+					registerFrame[16].U16 = 0b010000;	// Y-Axis Moving status -> GoPlace
+					Pf = PlaceTray9holes[2*i + 1];
+
+					runXFlag = 0;
+				}
 				ControllerState();
 
 				if(ControllerFinishedFollowFlag && (registerFrame[64].U16 == 0))
@@ -327,6 +340,7 @@ void BaseSystem_RuntrayMode()
 					{
 						RunTrayState = HolesCalculate;
 						eff_write(exitRun_cmd);
+						registerFrame[16].U16 = 0;
 						RunTrayFlag = 0;
 					}
 				}

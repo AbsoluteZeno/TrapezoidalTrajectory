@@ -8,6 +8,7 @@
 #include "LinearDrive.h"
 #include "Encoder.h"
 #include "Controller.h"
+#include "ModBusRTU.h"
 
 extern QEIStructureTypeDef QEIData;
 extern float PulseWidthModulation;
@@ -22,6 +23,7 @@ extern uint8_t N_disallow;
 extern uint8_t ControllerFinishedFollowFlag;
 extern PID Controller;
 extern float q_des;
+extern u16u8_t registerFrame[70];
 
 float Pcenter = 0;
 float Ncenter = 0;

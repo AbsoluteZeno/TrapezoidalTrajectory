@@ -65,7 +65,7 @@ Core/Src/LinearDrive.o: ../Core/Src/LinearDrive.c \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h \
- ../Core/Inc/Encoder.h ../Core/Inc/Controller.h
+ ../Core/Inc/Encoder.h ../Core/Inc/Controller.h ../Core/Inc/ModBusRTU.h
 C:/Extension/Work/FIBO/2nd_Year/2nd_Semester/FRA262/STM32/TrapezoidalTrajectory/TrapezoidalTraj/Drivers/DSP/Include/arm_math.h:
 C:/Extension/Work/FIBO/2nd_Year/2nd_Semester/FRA262/STM32/TrapezoidalTrajectory/TrapezoidalTraj/Drivers/DSP/Include/arm_math_types.h:
 ../Drivers/CMSIS/Include/cmsis_compiler.h:
@@ -135,3 +135,4 @@ C:/Extension/Work/FIBO/2nd_Year/2nd_Semester/FRA262/STM32/TrapezoidalTrajectory/
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h:
 ../Core/Inc/Encoder.h:
 ../Core/Inc/Controller.h:
+../Core/Inc/ModBusRTU.h:
