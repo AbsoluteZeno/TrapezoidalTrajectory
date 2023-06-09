@@ -243,79 +243,82 @@ void BaseSystem_RuntrayMode()
 	static uint16_t PickDelay = 0;
 	static uint16_t PlaceDelay = 0;
 
-	switch(RunTrayState)
+	if (RunTrayFlag)
 	{
-	case HolesCalculate:
-		registerFrame[1].U16 = 0b00000;
-		GoalReadyFlag = 0;
-		HolePositionsCartesian(Pickreference, PickrotationAngleRadian, PickTray9holes);
-		HolePositionsCartesian(Placereference, PlacerotationAngleRadian, PlaceTray9holes);
-		if (GoalReadyFlag)
-		{
-			RunTrayState = GoPick;
-			eff_write(runMode_cmd);
-			i = 0;
-		}
-	break;
-	case GoPick:
-		// Run X-Axis to Pick Tray
-		registerFrame[65].U16 = (int)(PickTray9holes[2*i]*10); //position -1400 to 1400
-		registerFrame[66].U16 = 3000; //velocity max 3000
-		registerFrame[67].U16 = 1; //acceleration 1 2 3
-
-		// Run Y-Axis to Pick Tray
-		registerFrame[16].U16 = 0b001000;	// Y-Axis Moving status -> GoPick
-		Pf = PickTray9holes[2*i + 1];
-		ControllerState();
-
-		if(ControllerFinishedFollowFlag && (registerFrame[64].U16 == 0))
-		{
-			RunTrayState = Pick;
-			PickDelay = 0;
-		}
-	break;
-	case Pick:
-		eff_write(pickup_cmd);
-		PickDelay++;
-
-		if (PickDelay >= 1000)
-		{
-			RunTrayState = GoPlace;
-		}
-	break;
-	case GoPlace:
-		// Run X-Axis to Pick Tray
-		registerFrame[65].U16 = (int)(PlaceTray9holes[2*i]*10); //position -1400 to 1400
-		registerFrame[66].U16 = 3000; //velocity max 3000
-		registerFrame[67].U16 = 1; //acceleration 1 2 3
-
-		// Run Y-Axis to Pick Tray
-		registerFrame[16].U16 = 0b010000;	// Y-Axis Moving status -> GoPlace
-		Pf = PlaceTray9holes[2*i + 1];
-		ControllerState();
-
-		if(ControllerFinishedFollowFlag && (registerFrame[64].U16 == 0))
-		{
-			RunTrayState = Place;
-			PlaceDelay = 0;
-			i++;
-		}
-	break;
-	case Place:
-		eff_write(place_cmd);
-		PlaceDelay++;
-
-		if (PickDelay >= 1000)
-		{
-			RunTrayState = GoPick;
-			if(i >= 9)
+		switch(RunTrayState)
 			{
-				RunTrayState = HolesCalculate;
-				eff_write(exitRun_cmd);
-				RunTrayFlag = 0;
+			case HolesCalculate:
+				registerFrame[1].U16 = 0b00000;
+				GoalReadyFlag = 0;
+				HolePositionsCartesian(Pickreference, PickrotationAngleRadian, PickTray9holes);
+				HolePositionsCartesian(Placereference, PlacerotationAngleRadian, PlaceTray9holes);
+				if (GoalReadyFlag)
+				{
+					RunTrayState = GoPick;
+					eff_write(runMode_cmd);
+					i = 0;
+				}
+			break;
+			case GoPick:
+				// Run X-Axis to Pick Tray
+				registerFrame[65].U16 = (int)(PickTray9holes[2*i]*10); //position -1400 to 1400
+				registerFrame[66].U16 = 3000; //velocity max 3000
+				registerFrame[67].U16 = 1; //acceleration 1 2 3
+
+				// Run Y-Axis to Pick Tray
+				registerFrame[16].U16 = 0b001000;	// Y-Axis Moving status -> GoPick
+				Pf = PickTray9holes[2*i + 1];
+				ControllerState();
+
+				if(ControllerFinishedFollowFlag && (registerFrame[64].U16 == 0))
+				{
+					RunTrayState = Pick;
+					PickDelay = 0;
+				}
+			break;
+			case Pick:
+				eff_write(pickup_cmd);
+				PickDelay++;
+
+				if (PickDelay >= 1000)
+				{
+					RunTrayState = GoPlace;
+				}
+			break;
+			case GoPlace:
+				// Run X-Axis to Pick Tray
+				registerFrame[65].U16 = (int)(PlaceTray9holes[2*i]*10); //position -1400 to 1400
+				registerFrame[66].U16 = 3000; //velocity max 3000
+				registerFrame[67].U16 = 1; //acceleration 1 2 3
+
+				// Run Y-Axis to Pick Tray
+				registerFrame[16].U16 = 0b010000;	// Y-Axis Moving status -> GoPlace
+				Pf = PlaceTray9holes[2*i + 1];
+				ControllerState();
+
+				if(ControllerFinishedFollowFlag && (registerFrame[64].U16 == 0))
+				{
+					RunTrayState = Place;
+					PlaceDelay = 0;
+					i++;
+				}
+			break;
+			case Place:
+				eff_write(place_cmd);
+				PlaceDelay++;
+
+				if (PickDelay >= 1000)
+				{
+					RunTrayState = GoPick;
+					if(i >= 9)
+					{
+						RunTrayState = HolesCalculate;
+						eff_write(exitRun_cmd);
+						RunTrayFlag = 0;
+					}
+				}
+			break;
 			}
-		}
-	break;
 	}
 }
 

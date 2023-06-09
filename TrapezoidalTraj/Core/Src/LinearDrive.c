@@ -78,7 +78,7 @@ void SetHome(TIM_HandleTypeDef* Encoder_tim, TIM_HandleTypeDef* PWM_tim)
 			Ncenter = 0;
 			Temp_pos = 0;
 			PulseWidthModulation = 3000;
-			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
 
 			if (pe1_st)
 			{
@@ -141,7 +141,7 @@ void SetHome(TIM_HandleTypeDef* Encoder_tim, TIM_HandleTypeDef* PWM_tim)
 			__HAL_TIM_SET_COUNTER(Encoder_tim, 0);
 			SetHomeYFlag = 0;
 			SetHomeState = Jog;
-			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
 
 			break;
 		case Recenter:
