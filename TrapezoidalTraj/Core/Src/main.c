@@ -260,6 +260,14 @@ int main(void)
 //  	PlaceTray9holes[15] = -300;
 //  	PickTray9holes[17] = 300;
 //  	PlaceTray9holes[17] = -300;
+
+  Pickreference[0] = 100;
+  Pickreference[1] = 200;
+  PickrotationAngleRadian = 0.785;
+
+  Placereference[0] = -100;
+  Placereference[1] = 300;
+  PlacerotationAngleRadian = 2.845;
   /* USER CODE END 2 */
 
   /* Infinite loop */

@@ -104,7 +104,7 @@ void BaseSystem_RunPointMode()
 				registerFrame[66].U16 = 3000; //velocity max 3000
 				registerFrame[67].U16 = 1; //acceleration 1 2 3
 				registerFrame[64].U16 = 2; //Run
-				Pf = registerFrame[49].U16/10.0;
+				Pf = ((int16_t)registerFrame[49].U16)/10.0;
 				runXFlag = 0;
 			}
 			ControllerState();

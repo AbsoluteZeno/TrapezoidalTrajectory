@@ -1,2 +1,2 @@
 ../Core/Src/LinearDrive.c:32:6:MotorDrive	16	static
-../Core/Src/LinearDrive.c:68:6:SetHome	24	static
+../Core/Src/LinearDrive.c:70:6:SetHome	24	static

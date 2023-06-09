@@ -40,9 +40,11 @@ void MotorDrive(TIM_HandleTypeDef* PWM_tim)
 			{
 				PulseWidthModulation = 8000;
 			}
-			else if (PulseWidthModulation < 1000)
+
+			if ((pe3_st && (SetHomeYFlag == 0)) || P_disallow)
 			{
-				PulseWidthModulation = 0;
+				__HAL_TIM_SET_COMPARE(PWM_tim,TIM_CHANNEL_1,0);
+				P_disallow = 1;
 			}
 		}
 		else
@@ -54,7 +56,7 @@ void MotorDrive(TIM_HandleTypeDef* PWM_tim)
 				PulseWidthModulation = -8000;
 			}
 
-			if ((pe3_st && (SetHomeYFlag == 0)) || N_disallow)
+			if ((pe2_st && (SetHomeYFlag == 0)) || N_disallow)
 			{
 				__HAL_TIM_SET_COMPARE(PWM_tim,TIM_CHANNEL_1,0);
 				N_disallow = 1;
