@@ -12,7 +12,7 @@ extern float qdot_des;
 extern float qddot_des;
 
 float v_max = 1000.0;	  	  // mm/s
-float a = 2000.0;		  	  // mm/s^
+float a = 1200.0;		  	  // mm/s^
 
 void TrapezoidalTraj_PreCal(int16_t start_pos, int16_t final_pos, Traj* trajectory)
 {

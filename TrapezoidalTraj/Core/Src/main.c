@@ -68,6 +68,7 @@ DMA_HandleTypeDef hdma_usart2_tx;
 //Parameters =================================================================================
 // Trajectory --------------------------------------------------------------------------------
 uint64_t t_traj = 0;	  // [us] 		Time use in trajectory function
+uint64_t t_total_actual = 0;
 float q_des;			  // [mm] 		Desire position calculated from trajectory
 float qdot_des;			  // [mm/s] 	Desire velocity calculated from trajectory
 float qddot_des;		  // [mm/s^2] 	Desire acceleration calculated from trajectory
@@ -75,6 +76,7 @@ Traj  traj;
 float Pi = 0;		  	  // [mm]
 float Pf = 0;			  // [mm]
 float Pf_last = 0;
+uint8_t SteadyStateFlag = 0;
 //// Time -----------------------------------------------------------------------------------
 uint64_t _micros = 0;
 // QEI --------------------------------------------------------------------------------------
@@ -123,12 +125,12 @@ float Pickreference[2] = {0, 0};
 float Pickopposite[2] = {0, 0};
 float32_t PickrotationAngleRadian = 0;
 float32_t PickrotationAngleDegree = 0;
-float32_t PickTray9holes[18];
+float PickTray9holes[18];
 float Placereference[2] = {0, 0};
 float Placeopposite[2] = {0, 0};
 float32_t PlacerotationAngleRadian = 0;
 float32_t PlacerotationAngleDegree = 0;
-float32_t PlaceTray9holes[18];
+float PlaceTray9holes[18];
 uint8_t GoalReadyFlag = 0;
 // Modbus -----------------------------------------------------------------------------------
 ModbusHandleTypedef hmodbus;
@@ -208,7 +210,7 @@ int main(void)
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
   Controller.Kp = 150;
-  Controller.Ki = 1.71;
+  Controller.Ki = 2.5;
   Controller.Kd = 0;
 
   hmodbus.huart = &huart2;
@@ -221,6 +223,43 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc1, adcRawData, 20);
   //-----------------------------------
 
+	PickTray9holes[1] = 300;
+	PlaceTray9holes[1] = -300;
+	PickTray9holes[3] = 300;
+	PlaceTray9holes[3] = -300;
+	PickTray9holes[5] = 200;
+	PlaceTray9holes[5] = -200;
+	PickTray9holes[7] = 200;
+	PlaceTray9holes[7] = -200;
+	PickTray9holes[9] = 100;
+	PlaceTray9holes[9] = -100;
+	PickTray9holes[11] = 100;
+	PlaceTray9holes[11] = -100;
+	PickTray9holes[13] = 100;
+	PlaceTray9holes[13] = -100;
+	PickTray9holes[15] = 200;
+	PlaceTray9holes[15] = -300;
+	PickTray9holes[17] = 300;
+	PlaceTray9holes[17] = -50;
+
+//  	PickTray9holes[1] = 300;
+//  	PlaceTray9holes[1] = -300;
+//  	PickTray9holes[3] = 300;
+//  	PlaceTray9holes[3] = -300;
+//  	PickTray9holes[5] = 300;
+//  	PlaceTray9holes[5] = -300;
+//  	PickTray9holes[7] = 300;
+//  	PlaceTray9holes[7] = -300;
+//  	PickTray9holes[9] = 300;
+//  	PlaceTray9holes[9] = -300;
+//  	PickTray9holes[11] = 300;
+//  	PlaceTray9holes[11] = -300;
+//  	PickTray9holes[13] = 300;
+//  	PlaceTray9holes[13] = -300;
+//  	PickTray9holes[15] = 300;
+//  	PlaceTray9holes[15] = -300;
+//  	PickTray9holes[17] = 300;
+//  	PlaceTray9holes[17] = -300;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -764,13 +803,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			}
 		}
 
-		BaseSystem_SetPickTray();
-		BaseSystem_SetPlaceTray();
-		BaseSystem_SetHome();
-		BaseSystem_RuntrayMode();
-		BaseSystem_RunPointMode();
-
-
+		if (emer_pushed)
+		{
+			BaseSystem_SetPickTray();
+			BaseSystem_SetPlaceTray();
+			BaseSystem_SetHome();
+			BaseSystem_RuntrayMode();
+			BaseSystem_RunPointMode();
+		}
 
 		static uint8_t i = 0;
 		if (i == 0)
@@ -800,6 +840,7 @@ void ControllerState()
 			if(Pf != Pf_last)
 			{
 				t_traj = 0;
+				SteadyStateFlag = 0;
 				TrapezoidalTraj_PreCal(Pi, Pf, &traj);
 				ControllerFinishedFollowFlag = 0;
 				state = Follow;
@@ -821,7 +862,13 @@ void ControllerState()
 			PositionControlVelocityForm(&Controller);
 			MotorDrive(&htim1);
 
-			if (((t_traj > traj.t_total * 1000000) && (0.15 > fabs(q_des - QEIData.position))) || P_disallow || N_disallow)
+			if (((t_traj > traj.t_total * 1000000) && (0.15 > fabs(q_des - QEIData.position)) && (SteadyStateFlag == 0)) || P_disallow || N_disallow)
+			{
+				t_total_actual = t_traj + 500000;
+				SteadyStateFlag = 1;
+			}
+
+			if (SteadyStateFlag && (t_traj > t_total_actual) && (0.15 > fabs(q_des - QEIData.position)))
 			{
 				state = Idle;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);

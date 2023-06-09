@@ -79,7 +79,7 @@ void SetTwoPointsForCalibrate(float x0, float y0, float x1, float y1, uint8_t tr
 	}
 }
 
-void HolePositionsCartesian(float32_t* bottomleft, float32_t rotationAngleRadian, float32_t* holePositionsCartesian)
+void HolePositionsCartesian(float32_t* bottomleft, float32_t rotationAngleRadian, float* holePositionsCartesian)
 {
 	if (GoalReadyFlag == 0)
 	{

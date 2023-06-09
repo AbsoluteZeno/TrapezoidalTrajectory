@@ -237,7 +237,7 @@ void BaseSystem_SetPlaceTray()
 
 void BaseSystem_RuntrayMode()
 {
-	static enum {HolesCalculate, GoPick, Pick, GoPlace, Place} RunTrayState = GoPick;
+	static enum {HolesCalculate, GoPick, Pick, GoPlace, Place} RunTrayState = HolesCalculate;
 
 	static uint8_t i = 0;
 	static uint16_t PickDelay = 0;
@@ -249,9 +249,10 @@ void BaseSystem_RuntrayMode()
 			{
 			case HolesCalculate:
 				registerFrame[1].U16 = 0b00000;
-				GoalReadyFlag = 0;
-				HolePositionsCartesian(Pickreference, PickrotationAngleRadian, PickTray9holes);
-				HolePositionsCartesian(Placereference, PlacerotationAngleRadian, PlaceTray9holes);
+				GoalReadyFlag = 1;
+//				GoalReadyFlag = 0;
+//				HolePositionsCartesian(Pickreference, PickrotationAngleRadian, PickTray9holes);
+//				HolePositionsCartesian(Placereference, PlacerotationAngleRadian, PlaceTray9holes);
 				if (GoalReadyFlag)
 				{
 					RunTrayState = GoPick;
@@ -280,7 +281,7 @@ void BaseSystem_RuntrayMode()
 				eff_write(pickup_cmd);
 				PickDelay++;
 
-				if (PickDelay >= 1000)
+				if (PickDelay >= 2000)
 				{
 					RunTrayState = GoPlace;
 				}
@@ -307,7 +308,7 @@ void BaseSystem_RuntrayMode()
 				eff_write(place_cmd);
 				PlaceDelay++;
 
-				if (PickDelay >= 1000)
+				if (PlaceDelay >= 2000)
 				{
 					RunTrayState = GoPick;
 					if(i >= 9)
