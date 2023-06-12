@@ -16,4 +16,10 @@ void BaseSystem_SetPickTray();
 void BaseSystem_SetPlaceTray();
 void BaseSystem_RuntrayMode();
 
+void BaseSystem_EffAllOff();
+void BaseSystem_EffLaserOn();
+void BaseSystem_EffGripperOn();
+void BaseSystem_EffGripperPick();
+void BaseSystem_EffGripperPlace();
+
 #endif /* BASESYSTEMSTATEMACHINE_H_ */

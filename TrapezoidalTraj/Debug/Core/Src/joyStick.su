@@ -1,2 +1,2 @@
 ../Core/Src/joyStick.c:29:6:GetJoystickXYaxisValue	24	static
-../Core/Src/joyStick.c:81:6:JoyStickControlCartesian	4	static
+../Core/Src/joyStick.c:81:6:JoyStickControlCartesian	8	static

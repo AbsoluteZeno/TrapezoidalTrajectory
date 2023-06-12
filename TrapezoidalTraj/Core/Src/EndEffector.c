@@ -213,6 +213,10 @@ void eff_write(uint8_t* cmd2){
 	HAL_I2C_Master_Transmit_IT(&hi2c1, 0x15 << 1, cmd2, 4);
 }
 
-uint8_t eff_read(){
+void eff_write2(uint8_t* cmd3){
+	HAL_I2C_Master_Transmit_IT(&hi2c1, 0x15 << 1, cmd3, 8);
+}
+
+void eff_read(){
 	HAL_I2C_Master_Receive_IT(&hi2c1, 0x15 << 1, effstatus, 1);
 }

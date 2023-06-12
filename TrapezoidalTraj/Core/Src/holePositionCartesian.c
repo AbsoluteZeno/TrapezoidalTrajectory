@@ -9,13 +9,13 @@
 #include "arm_math.h"
 
 extern uint8_t GoalReadyFlag;
-extern int Pickreference[2];
-extern int Pickopposite[2];
+extern float32_t Pickreference[2];
+extern float32_t Pickopposite[2];
 extern float32_t PickrotationAngleRadian;
 extern float32_t PickrotationAngleDegree;
 extern float32_t PickTray9holes[18];
-extern int Placereference[2];
-extern int Placeopposite[2];
+extern float32_t Placereference[2];
+extern float32_t Placeopposite[2];
 extern float32_t PlacerotationAngleRadian;
 extern float32_t PlacerotationAngleDegree;
 extern float32_t PlaceTray9holes[18];
@@ -66,25 +66,33 @@ void SetTwoPointsForCalibrate(float* x0, float* y0, float* x1, float* y1, uint8_
 	}
 }
 
-void HolePositionsCartesian(float bottomleft[], float rotationAngleRadian, float holePositionsCartesian[])
+void HolePositionsCartesian()
 {
 	if (GoalReadyFlag == 0)
 	{
-		float rotationMatrix[4] =
+		float PickrotationMatrix[4] =
 		{
-			arm_cos_f32(rotationAngleRadian),  //0
-			arm_sin_f32(rotationAngleRadian),  //1
-			-arm_sin_f32(rotationAngleRadian), //2
-			arm_cos_f32(rotationAngleRadian)   //3
+			arm_cos_f32(PickrotationAngleRadian),  //0
+			arm_sin_f32(PickrotationAngleRadian),  //1
+			-arm_sin_f32(PickrotationAngleRadian), //2
+			arm_cos_f32(PickrotationAngleRadian)   //3
+		};
+
+		float PlacerotationMatrix[4] =
+		{
+			arm_cos_f32(PlacerotationAngleRadian),  //0
+			arm_sin_f32(PlacerotationAngleRadian),  //1
+			-arm_sin_f32(PlacerotationAngleRadian), //2
+			arm_cos_f32(PlacerotationAngleRadian)   //3
 		};
 
 		static uint8_t i = 0;
-		//rotation
-		float x = (holePositionsRelativetoBottomLeft[i*2] * rotationMatrix[0]) + (holePositionsRelativetoBottomLeft[i*2+1] * rotationMatrix[2]) + bottomleft[0];
-		float y = (holePositionsRelativetoBottomLeft[i*2] * rotationMatrix[1]) + (holePositionsRelativetoBottomLeft[i*2+1] * rotationMatrix[3]) + bottomleft[1];
 
-		holePositionsCartesian[i*2] = x;
-		holePositionsCartesian[i*2 + 1] = y;
+		PickTray9holes[i*2] = (holePositionsRelativetoBottomLeft[i*2] * PickrotationMatrix[0]) + (holePositionsRelativetoBottomLeft[i*2+1] * PickrotationMatrix[2]) + Pickreference[0];
+		PickTray9holes[i*2 + 1] = (holePositionsRelativetoBottomLeft[i*2] * PickrotationMatrix[1]) + (holePositionsRelativetoBottomLeft[i*2+1] * PickrotationMatrix[3]) + Pickreference[1];
+
+		PlaceTray9holes[i*2] = (holePositionsRelativetoBottomLeft[i*2] * PlacerotationMatrix[0]) + (holePositionsRelativetoBottomLeft[i*2+1] * PlacerotationMatrix[2]) + Placereference[0];
+		PlaceTray9holes[i*2 + 1] = (holePositionsRelativetoBottomLeft[i*2] * PlacerotationMatrix[1]) + (holePositionsRelativetoBottomLeft[i*2+1] * PlacerotationMatrix[3]) + Placereference[1];
 
 		i++;
 		if (i == 9)

@@ -17,6 +17,7 @@ void check_js();
 void print_st();
 void test_eff();
 void eff_write(uint8_t* cmd);
-uint8_t eff_read();
+void eff_write2(uint8_t* cmd3);
+void eff_read();
 
 #endif /* INC_ENDEFFECTOR_H_ */

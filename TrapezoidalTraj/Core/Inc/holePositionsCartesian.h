@@ -11,6 +11,6 @@
 
 void swap(float* a, float* b);
 void SetTwoPointsForCalibrate(float* x0, float* y0, float* x1, float* y1, uint8_t trayNumber); // 0->Pick, 1->Place
-void HolePositionsCartesian(float bottomleft[], float rotationAngleRadian, float holePositionsCartesian[]);
+void HolePositionsCartesian();
 
 #endif /* INC_HOLEPOSITIONSCARTESIAN_H_ */

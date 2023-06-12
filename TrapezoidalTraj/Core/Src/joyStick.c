@@ -100,6 +100,6 @@ void JoyStickControlCartesian()
 
 		else{PulseWidthModulation = 0;}
 
-//		MotorDrive(&htim1);
+		MotorDrive(&htim1);
 	}
 }

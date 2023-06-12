@@ -43,6 +43,15 @@ extern uint8_t runMode_cmd[];
 extern uint8_t exitRun_cmd[];
 extern uint8_t pickup_cmd[];
 extern uint8_t place_cmd[];
+extern uint8_t 	AllOff_cmd[];
+
+extern uint8_t		EffAllOff_Flag;
+extern uint8_t		EffLaserOn_Flag;
+extern uint8_t		EffGripperOn_Flag;
+extern uint8_t		EffGripperPick_Flag;
+extern uint8_t		EffGripperPlace_Flag;
+
+extern uint8_t 		eff_action;
 
 extern void ControllerState();
 
@@ -265,13 +274,13 @@ void BaseSystem_RuntrayMode()
 			case HolesCalculate:
 				registerFrame[1].U16 = 0b00000;
 				GoalReadyFlag = 0;
-				HolePositionsCartesian(Pickreference, PickrotationAngleRadian, PickTray9holes);
-				HolePositionsCartesian(Placereference, PlacerotationAngleRadian, PlaceTray9holes);
+				HolePositionsCartesian();
 				if (GoalReadyFlag)
 				{
 					RunTrayState = GoPick;
 					eff_write(runMode_cmd);
 					i = 0;
+					runXFlag = 1;
 				}
 			break;
 			case GoPick:
@@ -304,6 +313,7 @@ void BaseSystem_RuntrayMode()
 				if (PickDelay >= 2000)
 				{
 					RunTrayState = GoPlace;
+					runXFlag = 1;
 				}
 			break;
 			case GoPlace:
@@ -337,6 +347,7 @@ void BaseSystem_RuntrayMode()
 				if (PlaceDelay >= 2000)
 				{
 					RunTrayState = GoPick;
+					runXFlag = 1;
 					if(i >= 9)
 					{
 						RunTrayState = HolesCalculate;
@@ -347,6 +358,44 @@ void BaseSystem_RuntrayMode()
 				}
 			break;
 			}
+	}
+}
+
+void BaseSystem_EffAllOff(){
+	if(EffAllOff_Flag == 1 && eff_action == 1){
+		eff_write2(AllOff_cmd);
+		EffAllOff_Flag = 0;
+		eff_action = 0;
+	}
+}
+void BaseSystem_EffLaserOn(){
+	if(EffLaserOn_Flag == 1 && eff_action == 1){
+		eff_write(testMode_cmd);
+		EffLaserOn_Flag = 0;
+		eff_action = 0;
+	}
+}
+void BaseSystem_EffGripperOn(){
+	if(EffGripperOn_Flag == 1 && eff_action == 1){
+		eff_write(runMode_cmd);
+		EffGripperOn_Flag = 0;
+		eff_action = 0;
+	}
+}
+void BaseSystem_EffGripperPick(){
+	if(EffGripperPick_Flag == 1 && eff_action == 1){
+		eff_write(pickup_cmd);
+		EffGripperPick_Flag = 0;
+		registerFrame[2].U16 = 0b0010;
+		eff_action = 0;
+	}
+}
+void BaseSystem_EffGripperPlace(){
+	if(EffGripperPlace_Flag == 1 && eff_action == 1){
+		eff_write(place_cmd);
+		EffGripperPlace_Flag = 0;
+		registerFrame[2].U16 = 0b0010;
+		eff_action = 0;
 	}
 }
 

@@ -11,6 +11,7 @@
 
 extern u16u8_t registerFrame[70];
 extern uint8_t effstatus;
+extern uint16_t effst_mb;
 
 void eff_st(){
 	//if placing  (bit10==10) => bit3 = 1
@@ -18,20 +19,22 @@ void eff_st(){
 	//if runMode  (bit2==1)   => bit1 = 1
 	//if testMode (bit3==1)   => bit0 = 1
 
-	effstatus = eff_read();
-	uint16_t effst_mb = 0;
-	//check placing
-	if((effstatus & 0b00000011) == 0b00000010){effst_mb = effst_mb | 0b0000000000001000;}
-	else									  {effst_mb = effst_mb & 0b1111111111110111;}
-	//check picking
-	if((effstatus & 0b00000011) == 0b00000001){effst_mb = effst_mb | 0b0000000000000100;}
-	else									  {effst_mb = effst_mb & 0b1111111111111011;}
-	//check runmode
-	if((effstatus & 0b00000100) == 0b00000100){effst_mb = effst_mb | 0b0000000000000010;}
-	if((effstatus & 0b00000100) == 0b00000000){effst_mb = effst_mb | 0b1111111111111101;}
-	//check testmode
-	if((effstatus & 0b00001000) == 0b00001000){effst_mb = effst_mb | 0b0000000000000001;}
-	if((effstatus & 0b00001000) == 0b00000000){effst_mb = effst_mb | 0b1111111111111110;}
+	//				READ	REG
+	//alloff		0000	0000
+	//laser on		1000	0001
+	//gripper on	0100	0010
+	//pick			0101	0110
+	//picked		0111	N/A
+	//place			0110	1010
 
-	registerFrame[2].U16 = effst_mb; //Ya 22881
+	eff_read();
+	effstatus = effstatus & 0b00001111;
+	if     (effstatus == 0b0000)	{effst_mb = 0b0000;}
+	else if(effstatus == 0b1000)	{effst_mb = 0b0001;}
+	else if(effstatus == 0b0100)	{effst_mb = 0b0010;}
+	else if(effstatus == 0b0101)	{effst_mb = 0b0110;}
+	//else if(effstatus == 0b0111)	{effst_mb = }
+	else if(effstatus == 0b0110)	{effst_mb = 0b1010;}
+
+	registerFrame[2].U16 = effst_mb;
 }

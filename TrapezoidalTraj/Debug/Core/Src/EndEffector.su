@@ -6,4 +6,5 @@
 ../Core/Src/EndEffector.c:147:6:print_st	400	static
 ../Core/Src/EndEffector.c:166:6:test_eff	8	static
 ../Core/Src/EndEffector.c:212:6:eff_write	16	static
-../Core/Src/EndEffector.c:216:9:eff_read	8	static
+../Core/Src/EndEffector.c:216:6:eff_write2	16	static
+../Core/Src/EndEffector.c:220:6:eff_read	8	static

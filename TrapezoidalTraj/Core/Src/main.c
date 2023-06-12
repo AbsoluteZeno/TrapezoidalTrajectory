@@ -102,11 +102,25 @@ uint8_t		runMode_cmd[]   = {0x10,0x13,0x99,0x99};
 uint8_t		exitRun_cmd[]   = {0x10,0x8C,0x99,0x99};
 uint8_t		pickup_cmd[]    = {0x10,0x5A,0x99,0x99};
 uint8_t		place_cmd[]     = {0x10,0x69,0x99,0x99};
+uint8_t 	AllOff_cmd[]	= {0x01,0x00,0x99,0x99,0x10,0x8C,0x99,0x99};
+
 uint8_t 	effst[1];
-uint8_t     readFlag 		= 0;
-uint8_t 	writeflag_ls 		= 0;
+uint8_t     readFlag 					= 0;
+uint8_t 	writeflag_ls 				= 0;
 uint8_t 	effstatus;
-uint8_t EndEffectorSoftResetFlag = 1;
+
+uint16_t 	EffRegState					= 0;
+
+uint8_t 	EndEffectorSoftResetFlag 	= 1;
+uint8_t		EffAllOff_Flag				= 0;
+uint8_t		EffLaserOn_Flag				= 0;
+uint8_t		EffGripperOn_Flag			= 0;
+uint8_t		EffGripperPick_Flag			= 0;
+uint8_t		EffGripperPlace_Flag		= 0;
+uint8_t 	eff_action 					= 0;
+uint16_t 	eff_l 						= 0;
+uint16_t 	eff_c 						= 0;
+uint16_t 	effst_mb 					= 0;
 // Emergency Switch
 uint8_t emer_pushed = 1;
 // Photoelectric sensor
@@ -126,16 +140,16 @@ float DummyB;
 float  max_pos = 0;
 float  overshoot = 0;
 //nine holes of tray-------------------------------
-float Pickreference[2] = {0, 0};
-float Pickopposite[2] = {0, 0};
+float32_t Pickreference[2] = {0, 0};
+float32_t Pickopposite[2] = {0, 0};
 float32_t PickrotationAngleRadian = 0;
 float32_t PickrotationAngleDegree = 0;
-float PickTray9holes[18];
-float Placereference[2] = {0, 0};
-float Placeopposite[2] = {0, 0};
+float32_t PickTray9holes[9][2];
+float32_t Placereference[2] = {0, 0};
+float32_t Placeopposite[2] = {0, 0};
 float32_t PlacerotationAngleRadian = 0;
 float32_t PlacerotationAngleDegree = 0;
-float PlaceTray9holes[18];
+float32_t PlaceTray9holes[9][2];
 uint8_t GoalReadyFlag = 0;
 // Modbus -----------------------------------------------------------------------------------
 ModbusHandleTypedef hmodbus;
@@ -182,8 +196,7 @@ int main(void)
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */	HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -266,13 +279,13 @@ int main(void)
 //  	PickTray9holes[17] = 300;
 //  	PlaceTray9holes[17] = -300;
 
-  Pickreference[0] = 100;
-  Pickreference[1] = 200;
-  PickrotationAngleRadian = 0.785;
-
-  Placereference[0] = -100;
-  Placereference[1] = 300;
-  PlacerotationAngleRadian = 2.845;
+//  Pickreference[0] = 100;
+//  Pickreference[1] = 200;
+//  PickrotationAngleRadian = 0.785;
+//
+//  Placereference[0] = -100;
+//  Placereference[1] = -300;
+//  PlacerotationAngleRadian = 2.845;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -818,6 +831,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 //			eff_st();
 //			writeflag_ls = 0;
 //		}
+
 		_micros += 1000;
 		QEIEncoderPositionVelocity_Update(&htim3, &htim5);
 
@@ -828,6 +842,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		{
 			eff_write(softReset_cmd);
 			EndEffectorSoftResetFlag = 0;
+		}
+
+		eff_c = registerFrame[2].U16;
+		if(eff_l != eff_c){
+			eff_action = 1;
 		}
 
 		switch (registerFrame[1].U16)
@@ -849,6 +868,36 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		break;
 		}
 
+		EffRegState = registerFrame[2].U16;
+
+		switch(EffRegState){
+		case 0b0000:	//everything off
+			if(eff_action == 1){
+				EffAllOff_Flag = 1;
+			}
+			break;
+		case 0b0001:	//laser on
+			if(eff_action == 1){
+				EffLaserOn_Flag = 1;
+			}
+			break;
+		case 0b0010:	//gripper on
+			if(eff_action == 1){
+				EffGripperOn_Flag = 1;
+			}
+			break;
+		case 0b0110:	//gripper picking
+			if(eff_action == 1){
+				EffGripperPick_Flag = 1;
+			}
+			break;
+		case 0b1010:	//gripper placing
+			if(eff_action == 1){
+				EffGripperPlace_Flag = 1;
+			}
+			break;
+		}
+
 		if (!(SetPickTrayFlag || SetPlaceTrayFlag || SetHomeFlag || RunTrayFlag || RunPointFlag || SetHomeYFlag))
 		{
 			GetJoystickXYaxisValue(&DummyA, &DummyB);
@@ -862,16 +911,32 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			BaseSystem_SetHome();
 			BaseSystem_RuntrayMode();
 			BaseSystem_RunPointMode();
+
+			BaseSystem_EffAllOff();
+			BaseSystem_EffLaserOn();
+			BaseSystem_EffGripperOn();
+			BaseSystem_EffGripperPick();
+			BaseSystem_EffGripperPlace();
 		}
+
+		static uint8_t j = 0;
+		if (j == 0)
+		{
+			eff_st();
+		}
+		j = (j + 1) % 500;
+
+		eff_l = eff_c;
 
 		static uint8_t i = 0;
 		if (i == 0)
 		{
 			registerFrame[0].U16 = 0b0101100101100001; //Ya 22881
-			//eff_st();
 			Modbus_Protocal_Worker();
+			//eff_st();
 		}
 		i = (i + 1) % 200;
+
 	}
 }
 
