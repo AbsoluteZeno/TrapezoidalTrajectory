@@ -4,7 +4,7 @@
 ../Core/Src/BaseSystemStateMachine.c:198:6:BaseSystem_SetPlaceTray	16	static
 ../Core/Src/BaseSystemStateMachine.c:262:6:BaseSystem_RuntrayMode	8	static
 ../Core/Src/BaseSystemStateMachine.c:364:6:BaseSystem_EffAllOff	8	static
-../Core/Src/BaseSystemStateMachine.c:371:6:BaseSystem_EffLaserOn	8	static
-../Core/Src/BaseSystemStateMachine.c:378:6:BaseSystem_EffGripperOn	8	static
-../Core/Src/BaseSystemStateMachine.c:385:6:BaseSystem_EffGripperPick	8	static
-../Core/Src/BaseSystemStateMachine.c:393:6:BaseSystem_EffGripperPlace	8	static
+../Core/Src/BaseSystemStateMachine.c:370:6:BaseSystem_EffLaserOn	8	static
+../Core/Src/BaseSystemStateMachine.c:376:6:BaseSystem_EffGripperOn	8	static
+../Core/Src/BaseSystemStateMachine.c:382:6:BaseSystem_EffGripperPick	8	static
+../Core/Src/BaseSystemStateMachine.c:389:6:BaseSystem_EffGripperPlace	8	static

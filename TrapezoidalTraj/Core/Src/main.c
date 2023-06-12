@@ -108,6 +108,8 @@ uint8_t 	effst[1];
 uint8_t     readFlag 					= 0;
 uint8_t 	writeflag_ls 				= 0;
 uint8_t 	effstatus;
+uint8_t 	effstatus_temp;
+uint8_t 	effreg_temp;
 
 uint16_t 	EffRegState					= 0;
 
@@ -874,26 +876,31 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		case 0b0000:	//everything off
 			if(eff_action == 1){
 				EffAllOff_Flag = 1;
+				eff_action = 0;
 			}
 			break;
 		case 0b0001:	//laser on
 			if(eff_action == 1){
 				EffLaserOn_Flag = 1;
+				eff_action = 0;
 			}
 			break;
 		case 0b0010:	//gripper on
 			if(eff_action == 1){
 				EffGripperOn_Flag = 1;
+				eff_action = 0;
 			}
 			break;
 		case 0b0110:	//gripper picking
 			if(eff_action == 1){
 				EffGripperPick_Flag = 1;
+				eff_action = 0;
 			}
 			break;
 		case 0b1010:	//gripper placing
 			if(eff_action == 1){
 				EffGripperPlace_Flag = 1;
+				eff_action = 0;
 			}
 			break;
 		}

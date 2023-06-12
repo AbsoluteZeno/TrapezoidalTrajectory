@@ -9,6 +9,7 @@
 #include "stdio.h"
 #include "string.h"
 #include "main.h"
+#include "BaseSystemStateMachine.h"
 
 extern I2C_HandleTypeDef hi2c1;
 extern UART_HandleTypeDef huart2;
@@ -48,7 +49,19 @@ extern uint8_t exitRun_cmd[];
 extern uint8_t pickup_cmd[];
 extern uint8_t place_cmd[];
 
+extern uint8_t		EffAllOff_Flag;
+extern uint8_t		EffLaserOn_Flag;
+extern uint8_t		EffGripperOn_Flag;
+extern uint8_t		EffGripperPick_Flag;
+extern uint8_t		EffGripperPlace_Flag;
+
+extern uint16_t 	EffRegState;
+
 extern uint8_t effstatus[1];
+extern uint8_t effstatus_temp;
+extern uint8_t effreg_temp;
+
+extern u16u8_t registerFrame[70];
 
 void led_fnc()
 {
@@ -106,11 +119,42 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, 0);
 		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
 		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, 0);
+		effreg_temp = registerFrame[2].U16;
+		effstatus_temp = effstatus[0];
 		eff_write(emerMode_cmd);
 		__HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,0);
 	}
 	if(GPIO_Pin == GPIO_PIN_12 && HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == 1){
 		eff_write(exitEmer_cmd);
+		registerFrame[2].U16 = effreg_temp;
+		effstatus[0] = effstatus_temp;
+
+		EffRegState = registerFrame[2].U16;
+
+		switch(EffRegState){
+		case 0b0000:	//everything off
+			EffAllOff_Flag = 1;
+			break;
+		case 0b0001:	//laser on
+			EffLaserOn_Flag = 1;
+			break;
+		case 0b0010:	//gripper on
+			EffGripperOn_Flag = 1;
+			break;
+		case 0b0110:	//gripper picking
+			EffGripperPick_Flag = 1;
+			break;
+		case 0b1010:	//gripper placing
+			EffGripperPlace_Flag = 1;
+			break;
+		}
+
+		BaseSystem_EffAllOff();
+		BaseSystem_EffLaserOn();
+		BaseSystem_EffGripperOn();
+		BaseSystem_EffGripperPick();
+		BaseSystem_EffGripperPlace();
+
 		emer_pushed = 1;
 	}
 }
