@@ -104,8 +104,8 @@ uint8_t		pickup_cmd[]    = {0x10,0x5A,0x99,0x99};
 uint8_t		place_cmd[]     = {0x10,0x69,0x99,0x99};
 uint8_t 	effst[1];
 uint8_t     readFlag 		= 0;
-uint8_t 	writeFlag 		= 0;
-uint8_t 	effstatus[1];
+uint8_t 	writeflag_ls 		= 0;
+uint8_t 	effstatus;
 uint8_t EndEffectorSoftResetFlag = 1;
 // Emergency Switch
 uint8_t emer_pushed = 1;
@@ -120,6 +120,11 @@ uint32_t IN1[10]; //X
 uint8_t JoyStickSwitch = 0;
 uint32_t X_axis, Y_axis;
 uint32_t joystickXaxis, joystickYaxis;
+float DummyA;
+float DummyB;
+//Overshoot Testing--------------------------------
+float  max_pos = 0;
+float  overshoot = 0;
 //nine holes of tray-------------------------------
 float Pickreference[2] = {0, 0};
 float Pickopposite[2] = {0, 0};
@@ -777,6 +782,42 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 	if(htim == &htim5)
 	{
+//		if(writeflag_ls == 1){
+//			eff_write(softReset_cmd);
+//			writeflag_ls = 0;
+//		}
+//		if(writeflag_ls == 2){
+//			eff_write(testMode_cmd);
+//			writeflag_ls = 0;
+//		}
+//		if(writeflag_ls == 3){
+//			eff_write(exitTest_cmd);
+//			writeflag_ls = 0;
+//		}
+//		if(writeflag_ls == 4){
+//			eff_write(runMode_cmd);
+//			writeflag_ls = 0;
+//		}
+//		if(writeflag_ls == 5){
+//			eff_write(exitRun_cmd);
+//			writeflag_ls = 0;
+//		}
+//		if(writeflag_ls == 6){
+//			eff_write(pickup_cmd);
+//			writeflag_ls = 0;
+//		}
+//		if(writeflag_ls == 7){
+//			eff_write(place_cmd);
+//			writeflag_ls = 0;
+//		}
+//		if(writeflag_ls == 8){
+//			eff_read();
+//			writeflag_ls = 0;
+//		}
+//		if(writeflag_ls == 9){
+//			eff_st();
+//			writeflag_ls = 0;
+//		}
 		_micros += 1000;
 		QEIEncoderPositionVelocity_Update(&htim3, &htim5);
 
@@ -808,6 +849,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		break;
 		}
 
+		if (!(SetPickTrayFlag || SetPlaceTrayFlag || SetHomeFlag || RunTrayFlag || RunPointFlag || SetHomeYFlag))
+		{
+			GetJoystickXYaxisValue(&DummyA, &DummyB);
+			JoyStickControlCartesian();
+		}
+
 		if (emer_pushed)
 		{
 			BaseSystem_SetPickTray();
@@ -821,7 +868,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		if (i == 0)
 		{
 			registerFrame[0].U16 = 0b0101100101100001; //Ya 22881
-//			eff_st();
+			//eff_st();
 			Modbus_Protocal_Worker();
 		}
 		i = (i + 1) % 200;
@@ -867,6 +914,11 @@ void ControllerState()
 			PositionControlVelocityForm(&Controller);
 			MotorDrive(&htim1);
 
+			if(QEIData.position > max_pos)
+			{
+				max_pos = QEIData.position;
+			}
+
 			if (((t_traj > traj.t_total * 1000000) && (0.15 > fabs(q_des - QEIData.position)) && (SteadyStateFlag == 0)) || P_disallow || N_disallow)
 			{
 				t_total_actual = t_traj + 500000;
@@ -876,6 +928,8 @@ void ControllerState()
 			if (SteadyStateFlag && (t_traj > t_total_actual) && (0.05 > fabs(q_des - QEIData.position)) || (P_disallow) || (N_disallow))
 			{
 				state = Idle;
+				overshoot = max_pos * 100/(Pf - Pi);
+				max_pos = 0;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
 			}
 		break;

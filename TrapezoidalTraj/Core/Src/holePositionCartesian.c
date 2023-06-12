@@ -23,7 +23,7 @@ extern float32_t PlaceTray9holes[18];
 float32_t holePositionsCartesianrotation[18];
 float32_t rotationAngleRadian = 0;
 float32_t Degrees = 0;
-static float32_t holePositionsRelativetoBottomLeft[18] =
+float holePositionsRelativetoBottomLeft[18] =
 {
   10, 10,
   30, 10,
@@ -51,7 +51,7 @@ void SetTwoPointsForCalibrate(float* x0, float* y0, float* x1, float* y1, uint8_
 		if (*x0 > *x1){swap(x0, x1); swap(y0, y1);}
 	}
 
-	rotationAngleRadian = atan2(*y1 - *y0, *x1 - *x0) - atan2(50, 60);
+	rotationAngleRadian = atan2(50, 60) - atan2(*y1 - *y0, *x1 - *x0);
 	Degrees = rotationAngleRadian * (180 / M_PI);
 
 	if (trayNumber == 0)
@@ -66,11 +66,11 @@ void SetTwoPointsForCalibrate(float* x0, float* y0, float* x1, float* y1, uint8_
 	}
 }
 
-void HolePositionsCartesian(float32_t* bottomleft, float32_t rotationAngleRadian, float* holePositionsCartesian)
+void HolePositionsCartesian(float bottomleft[], float rotationAngleRadian, float holePositionsCartesian[])
 {
 	if (GoalReadyFlag == 0)
 	{
-		float32_t rotationMatrix[4] =
+		float rotationMatrix[4] =
 		{
 			arm_cos_f32(rotationAngleRadian),  //0
 			arm_sin_f32(rotationAngleRadian),  //1
@@ -80,12 +80,11 @@ void HolePositionsCartesian(float32_t* bottomleft, float32_t rotationAngleRadian
 
 		static uint8_t i = 0;
 		//rotation
-		holePositionsCartesianrotation[i*2] = (holePositionsRelativetoBottomLeft[i*2] * rotationMatrix[0]) + (holePositionsRelativetoBottomLeft[i*2+1] * rotationMatrix[2]);
-		holePositionsCartesianrotation[i*2+1] = (holePositionsRelativetoBottomLeft[i*2] * rotationMatrix[1]) + (holePositionsRelativetoBottomLeft[i*2+1] * rotationMatrix[3]);
+		float x = (holePositionsRelativetoBottomLeft[i*2] * rotationMatrix[0]) + (holePositionsRelativetoBottomLeft[i*2+1] * rotationMatrix[2]) + bottomleft[0];
+		float y = (holePositionsRelativetoBottomLeft[i*2] * rotationMatrix[1]) + (holePositionsRelativetoBottomLeft[i*2+1] * rotationMatrix[3]) + bottomleft[1];
 
-		//translation
-		*(holePositionsCartesian + (i*2)) = holePositionsCartesianrotation[i*2] + bottomleft[0];
-		*(holePositionsCartesian + (i*2 + 1)) = holePositionsCartesianrotation[i*2+1] + bottomleft[1];
+		holePositionsCartesian[i*2] = x;
+		holePositionsCartesian[i*2 + 1] = y;
 
 		i++;
 		if (i == 9)

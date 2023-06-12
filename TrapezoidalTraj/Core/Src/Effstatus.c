@@ -10,6 +10,7 @@
 #include "main.h"
 
 extern u16u8_t registerFrame[70];
+extern uint8_t effstatus;
 
 void eff_st(){
 	//if placing  (bit10==10) => bit3 = 1
@@ -17,7 +18,7 @@ void eff_st(){
 	//if runMode  (bit2==1)   => bit1 = 1
 	//if testMode (bit3==1)   => bit0 = 1
 
-	uint8_t effstatus = eff_read();
+	effstatus = eff_read();
 	uint16_t effst_mb = 0;
 	//check placing
 	if((effstatus & 0b00000011) == 0b00000010){effst_mb = effst_mb | 0b0000000000001000;}

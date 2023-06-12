@@ -63,14 +63,15 @@ void BaseSystem_SetHome()
 		case idle:
 			registerFrame[1].U16 = 0b00000000; //bit 2 set home = 0 //base system status
 			registerFrame[16].U16 = 0b00000100; //bit 2 set home = 1 //y-axis moving status
-			state = sethome;
-		break;
-		case sethome:
+
 			//set home x-axis
 			registerFrame[64].U16 = 0b00000001;
 			//set home y-axis
 			SetHomeYFlag = 1;
 
+			state = sethome;
+		break;
+		case sethome:
 			if((registerFrame[64].U16 == 0b00000000) && (SetHomeYFlag == 0))
 			{
 				state = idle;
