@@ -49,6 +49,11 @@ extern uint8_t exitRun_cmd[];
 extern uint8_t pickup_cmd[];
 extern uint8_t place_cmd[];
 
+extern uint8_t 	exitEmerAndtestMode_cmd[];
+extern uint8_t 	exitEmerAndrunMode_cmd[];
+extern uint8_t 	exitEmerAndpickup_cmd[];
+extern uint8_t 	exitEmerAndplace_cmd[];
+
 extern uint8_t		EffAllOff_Flag;
 extern uint8_t		EffLaserOn_Flag;
 extern uint8_t		EffGripperOn_Flag;
@@ -62,6 +67,13 @@ extern uint8_t effstatus_temp;
 extern uint8_t effreg_temp;
 
 extern u16u8_t registerFrame[70];
+
+extern enum {Idle, Follow} state;
+extern uint8_t emerpass;
+
+extern uint8_t ControllerFlag;
+
+uint8_t ControllerFlagMem = 0;
 
 void led_fnc()
 {
@@ -123,9 +135,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 		effstatus_temp = effstatus[0];
 		eff_write(emerMode_cmd);
 		__HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,0);
+		ControllerFlagMem = ControllerFlag;
+		ControllerFlag = 0;
+		state = Idle;
+		emerpass = 1;
 	}
 	if(GPIO_Pin == GPIO_PIN_12 && HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == 1){
-		eff_write(exitEmer_cmd);
+		//eff_write(exitEmer_cmd);
 		registerFrame[2].U16 = effreg_temp;
 		effstatus[0] = effstatus_temp;
 
@@ -133,28 +149,31 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 		switch(EffRegState){
 		case 0b0000:	//everything off
-			EffAllOff_Flag = 1;
+			eff_write(exitEmer_cmd);
 			break;
 		case 0b0001:	//laser on
-			EffLaserOn_Flag = 1;
+			eff_write2(exitEmerAndtestMode_cmd);
 			break;
 		case 0b0010:	//gripper on
-			EffGripperOn_Flag = 1;
+			eff_write2(exitEmerAndrunMode_cmd);
 			break;
 		case 0b0110:	//gripper picking
-			EffGripperPick_Flag = 1;
+			registerFrame[2].U16 = 0b0010;
+			eff_write2(exitEmerAndpickup_cmd);
 			break;
 		case 0b1010:	//gripper placing
-			EffGripperPlace_Flag = 1;
+			registerFrame[2].U16 = 0b0010;
+			eff_write2(exitEmerAndplace_cmd);
 			break;
 		}
+//
+//		BaseSystem_EffAllOff();
+//		BaseSystem_EffLaserOn();
+//		BaseSystem_EffGripperOn();
+//		BaseSystem_EffGripperPick();
+//		BaseSystem_EffGripperPlace();
 
-		BaseSystem_EffAllOff();
-		BaseSystem_EffLaserOn();
-		BaseSystem_EffGripperOn();
-		BaseSystem_EffGripperPick();
-		BaseSystem_EffGripperPlace();
-
+		ControllerFlag = ControllerFlagMem;
 		emer_pushed = 1;
 	}
 }

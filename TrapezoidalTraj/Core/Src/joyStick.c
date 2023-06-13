@@ -22,6 +22,7 @@ extern uint8_t SetHomeYFlag;
 extern float PulseWidthModulation;
 extern TIM_HandleTypeDef htim5;
 extern TIM_HandleTypeDef htim1;
+extern uint8_t JoyStickReadyFlag;
 
 uint8_t JoyStickSwitch_last = 1;
 uint64_t StartTime = 0;
@@ -31,6 +32,7 @@ void GetJoystickXYaxisValue(float* ptrx, float* ptry)
 	JoyStickSwitch = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4);
 
 	static uint8_t i = 0;
+	static uint8_t n = 0;
 	if(i % 2 == 0)
 	{
 		IN1[i/2] = adcRawData[i];
@@ -50,18 +52,24 @@ void GetJoystickXYaxisValue(float* ptrx, float* ptry)
 			joystickXaxis = X_axis/10;
 			X_axis = 0;
 			i = 0;
+			JoyStickReadyFlag = 1;
 		}
 	}
 	i = (i+1)%20;
 
-	if ((JoyStickSwitch == 0) && (SetHomeYFlag == 0) && (joystickYaxis < 2500) && (joystickYaxis > 1400)&& (joystickXaxis < 2500) && (joystickXaxis > 1400))
+	if ((JoyStickSwitch == 0) && (SetHomeYFlag == 0) && (joystickYaxis < 2100) && (joystickYaxis > 1700)&& (joystickXaxis < 2100) && (joystickXaxis > 1700))
 	{
 		if (JoyStickSwitch_last == 1 && JoyStickSwitch == 0)
 		{
 			StartTime = micros(&htim5);
 			// Keep encoder position xy
-			*ptrx = registerFrame[68].U16/10.0; //encoderx
-			*ptry = QEIData.position; //encodery25
+			n++;
+			if (n >= 10)
+			{
+				*ptrx = ((int16_t)registerFrame[68].U16)/10.0; //encoderx
+				*ptry = QEIData.position; //encodery25
+				n = 0;
+			}
 		}
 		else if (JoyStickSwitch_last == 0 && JoyStickSwitch == 0)
 		{
@@ -80,14 +88,14 @@ void GetJoystickXYaxisValue(float* ptrx, float* ptry)
 
 void JoyStickControlCartesian()
 {
-	if (SetHomeYFlag == 0)
+	if ((SetHomeYFlag == 0) && JoyStickReadyFlag)
 	{
 		//X-axis
-		if(joystickYaxis > 2500) //Left
-		{registerFrame[64].U16 = 4;}
-
-		else if(joystickYaxis < 1400) //Right
+		if(joystickYaxis > 2500) //Right
 		{registerFrame[64].U16 = 8;}
+
+		else if(joystickYaxis < 1400) //Left
+		{registerFrame[64].U16 = 4;}
 
 		else{registerFrame[64].U16 = 0;}
 

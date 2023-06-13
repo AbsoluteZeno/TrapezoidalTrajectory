@@ -54,6 +54,11 @@ void SetTwoPointsForCalibrate(float* x0, float* y0, float* x1, float* y1, uint8_
 	rotationAngleRadian = atan2(50, 60) - atan2(*y1 - *y0, *x1 - *x0);
 	Degrees = rotationAngleRadian * (180 / M_PI);
 
+	if (Degrees < 0)
+	{
+		Degrees = 360 + Degrees;
+	}
+
 	if (trayNumber == 0)
 	{
 		PickrotationAngleRadian = rotationAngleRadian;
@@ -88,11 +93,11 @@ void HolePositionsCartesian()
 
 		static uint8_t i = 0;
 
-		PickTray9holes[i*2] = (holePositionsRelativetoBottomLeft[i*2] * PickrotationMatrix[0]) + (holePositionsRelativetoBottomLeft[i*2+1] * PickrotationMatrix[2]) + Pickreference[0];
-		PickTray9holes[i*2 + 1] = (holePositionsRelativetoBottomLeft[i*2] * PickrotationMatrix[1]) + (holePositionsRelativetoBottomLeft[i*2+1] * PickrotationMatrix[3]) + Pickreference[1];
+		PickTray9holes[i*2] = (holePositionsRelativetoBottomLeft[i*2] * PickrotationMatrix[0]) + (holePositionsRelativetoBottomLeft[i*2+1] * PickrotationMatrix[1]) + Pickreference[0];
+		PickTray9holes[i*2 + 1] = (holePositionsRelativetoBottomLeft[i*2] * PickrotationMatrix[2]) + (holePositionsRelativetoBottomLeft[i*2+1] * PickrotationMatrix[3]) + Pickreference[1];
 
-		PlaceTray9holes[i*2] = (holePositionsRelativetoBottomLeft[i*2] * PlacerotationMatrix[0]) + (holePositionsRelativetoBottomLeft[i*2+1] * PlacerotationMatrix[2]) + Placereference[0];
-		PlaceTray9holes[i*2 + 1] = (holePositionsRelativetoBottomLeft[i*2] * PlacerotationMatrix[1]) + (holePositionsRelativetoBottomLeft[i*2+1] * PlacerotationMatrix[3]) + Placereference[1];
+		PlaceTray9holes[i*2] = (holePositionsRelativetoBottomLeft[i*2] * PlacerotationMatrix[0]) + (holePositionsRelativetoBottomLeft[i*2+1] * PlacerotationMatrix[1]) + Placereference[0];
+		PlaceTray9holes[i*2 + 1] = (holePositionsRelativetoBottomLeft[i*2] * PlacerotationMatrix[2]) + (holePositionsRelativetoBottomLeft[i*2+1] * PlacerotationMatrix[3]) + Placereference[1];
 
 		i++;
 		if (i == 9)

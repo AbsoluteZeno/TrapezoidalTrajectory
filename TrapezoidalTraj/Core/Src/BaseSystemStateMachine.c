@@ -32,7 +32,7 @@ extern float32_t PlacerotationAngleRadian;
 extern float32_t PlacerotationAngleDegree;
 extern float32_t PlaceTray9holes[18];
 extern uint8_t GoalReadyFlag;
-extern uint8_t ControllerFinishedFollowFlag;
+extern uint8_t ControllerFlag;
 
 extern uint8_t softReset_cmd[];
 extern uint8_t emerMode_cmd[];
@@ -60,6 +60,8 @@ int Pickreference_last[2] = {0, 0};
 int Pickopposite_last[2] = {0, 0};
 int Placereference_last[2] = {0, 0};
 int Placeopposite_last[2] = {0, 0};
+
+uint8_t PFlag = 0;
 
 void BaseSystem_SetHome()
 {
@@ -115,11 +117,11 @@ void BaseSystem_RunPointMode()
 				registerFrame[67].U16 = 1; //acceleration 1 2 3
 				registerFrame[64].U16 = 2; //Run
 				Pf = ((int16_t)registerFrame[49].U16)/10.0;
+				ControllerFlag = 1;
 				runXFlag = 0;
 			}
-			ControllerState();
 
-			if(ControllerFinishedFollowFlag && (registerFrame[64].U16 == 0))
+			if((ControllerFlag == 0) && (registerFrame[64].U16 == 0))
 			{
 				state = idle;
 				registerFrame[16].U16 = 0b00000000; //bit 5 go point = 0 //y-axis moving status
@@ -145,9 +147,7 @@ void BaseSystem_SetPickTray()
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
 			eff_write(testMode_cmd);
 			memset(Pickreference, 0, sizeof(Pickreference));
-			memset(Pickopposite, 0, sizeof(Pickopposite));
 			memset(Pickreference_last, 0, sizeof(Pickreference_last));
-			memset(Pickopposite_last, 0, sizeof(Pickopposite_last));
 		break;
 		case GetFirstPoint:
 			GetJoystickXYaxisValue(&Pickreference[0], &Pickreference[1]);
@@ -156,6 +156,9 @@ void BaseSystem_SetPickTray()
 			if ((Pickreference_last[0] != Pickreference[0]) || (Pickreference_last[1] != Pickreference[1]))
 			{
 				SetPickTrayState = GetSecondPoint;
+				memset(Pickopposite, 0, sizeof(Pickopposite));
+				memset(Pickopposite_last, 0, sizeof(Pickopposite_last));
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
 			}
 		break;
 		case GetSecondPoint:
@@ -174,6 +177,7 @@ void BaseSystem_SetPickTray()
 				registerFrame[16].U16 = 0b000000;
 				SetPickTrayFlag = 0;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
 				eff_write(exitTest_cmd);
 
 			}
@@ -210,9 +214,7 @@ void BaseSystem_SetPlaceTray()
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
 			eff_write(testMode_cmd);
 			memset(Placereference, 0, sizeof(Placereference));
-			memset(Placeopposite, 0, sizeof(Placeopposite));
 			memset(Placereference_last, 0, sizeof(Placereference_last));
-			memset(Placeopposite_last, 0, sizeof(Placeopposite_last));
 		break;
 		case GetFirstPoint:
 			GetJoystickXYaxisValue(&Placereference[0], &Placereference[1]);
@@ -221,6 +223,9 @@ void BaseSystem_SetPlaceTray()
 			if ((Placereference_last[0] != Placereference[0]) || (Placereference_last[1] != Placereference[1]))
 			{
 				SetPlaceTrayState = GetSecondPoint;
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+				memset(Placeopposite, 0, sizeof(Placeopposite));
+				memset(Placeopposite_last, 0, sizeof(Placeopposite_last));
 			}
 		break;
 		case GetSecondPoint:
@@ -239,6 +244,7 @@ void BaseSystem_SetPlaceTray()
 				registerFrame[16].U16 = 0b000000;
 				SetPlaceTrayFlag = 0;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
 				eff_write(exitTest_cmd);
 			}
 		break;
@@ -295,22 +301,27 @@ void BaseSystem_RuntrayMode()
 					// Run Y
 					registerFrame[16].U16 = 0b001000;	// Y-Axis Moving status -> GoPick
 					Pf = PickTray9holes[2*i + 1];
+					ControllerFlag = 1;
 
 					runXFlag = 0;
 				}
-				ControllerState();
 
-				if(ControllerFinishedFollowFlag && (registerFrame[64].U16 == 0))
+				if((ControllerFlag == 0) && (registerFrame[64].U16 == 0))
 				{
 					RunTrayState = Pick;
 					PickDelay = 0;
+					PFlag = 1;
 				}
 			break;
 			case Pick:
-				eff_write(pickup_cmd);
+				if (PFlag)
+				{
+					eff_write(pickup_cmd);
+					PFlag = 0;
+				}
 				PickDelay++;
 
-				if (PickDelay >= 2000)
+				if (PickDelay >= 1000)
 				{
 					RunTrayState = GoPlace;
 					runXFlag = 1;
@@ -328,23 +339,28 @@ void BaseSystem_RuntrayMode()
 					// Run Y
 					registerFrame[16].U16 = 0b010000;	// Y-Axis Moving status -> GoPlace
 					Pf = PlaceTray9holes[2*i + 1];
+					ControllerFlag = 1;
 
 					runXFlag = 0;
 				}
-				ControllerState();
 
-				if(ControllerFinishedFollowFlag && (registerFrame[64].U16 == 0))
+				if((ControllerFlag == 0) && (registerFrame[64].U16 == 0))
 				{
 					RunTrayState = Place;
 					PlaceDelay = 0;
+					PFlag = 1;
 					i++;
 				}
 			break;
 			case Place:
-				eff_write(place_cmd);
+				if (PFlag)
+				{
+					eff_write(place_cmd);
+					PFlag = 0;
+				}
 				PlaceDelay++;
 
-				if (PlaceDelay >= 2000)
+				if (PlaceDelay >= 1000)
 				{
 					RunTrayState = GoPick;
 					runXFlag = 1;
@@ -354,6 +370,7 @@ void BaseSystem_RuntrayMode()
 						eff_write(exitRun_cmd);
 						registerFrame[16].U16 = 0;
 						RunTrayFlag = 0;
+						SetHomeFlag = 1;
 					}
 				}
 			break;

@@ -83,8 +83,10 @@ uint64_t _micros = 0;
 QEIStructureTypeDef QEIData = {0};
 // PID --------------------------------------------------------------------------------------
 float PulseWidthModulation = 0;
-uint8_t ControllerFinishedFollowFlag = 0;
+uint8_t ControllerFlag = 0;
 PID Controller;
+uint8_t emerpass = 0;
+enum {Idle, Follow} state = Idle;
 // Stroke Safety ----------------------------------------------------------------------------
 uint8_t P_disallow = 0;
 uint8_t N_disallow = 0;
@@ -103,6 +105,12 @@ uint8_t		exitRun_cmd[]   = {0x10,0x8C,0x99,0x99};
 uint8_t		pickup_cmd[]    = {0x10,0x5A,0x99,0x99};
 uint8_t		place_cmd[]     = {0x10,0x69,0x99,0x99};
 uint8_t 	AllOff_cmd[]	= {0x01,0x00,0x99,0x99,0x10,0x8C,0x99,0x99};
+
+//uint8_t 	exitEmerAndAllOff = exitEmer
+uint8_t 	exitEmerAndtestMode_cmd[] 	= {0xE5,0x7A,0xFF,0x81,0x01,0x10,0x99,0x99};
+uint8_t 	exitEmerAndrunMode_cmd[] 	= {0xE5,0x7A,0xFF,0x81,0x10,0x13,0x99,0x99};
+uint8_t 	exitEmerAndpickup_cmd[] 	= {0xE5,0x7A,0xFF,0x81,0x10,0x5A,0x99,0x99};
+uint8_t 	exitEmerAndplace_cmd[] 		= {0xE5,0x7A,0xFF,0x81,0x10,0x69,0x99,0x99};
 
 uint8_t 	effst[1];
 uint8_t     readFlag 					= 0;
@@ -131,11 +139,12 @@ uint8_t 	pe2_st;					//Photoelectric Sensor Value
 uint8_t 	pe3_st;
 //joy stick----------------------------------------
 uint16_t adcRawData[20];
-uint32_t IN0[10]; //Y
-uint32_t IN1[10]; //X
+uint32_t IN0[10]; //X
+uint32_t IN1[10]; //Y
 uint8_t JoyStickSwitch = 0;
 uint32_t X_axis, Y_axis;
 uint32_t joystickXaxis, joystickYaxis;
+uint8_t JoyStickReadyFlag = 0;
 float DummyA;
 float DummyB;
 //Overshoot Testing--------------------------------
@@ -146,12 +155,12 @@ float32_t Pickreference[2] = {0, 0};
 float32_t Pickopposite[2] = {0, 0};
 float32_t PickrotationAngleRadian = 0;
 float32_t PickrotationAngleDegree = 0;
-float32_t PickTray9holes[9][2];
+float32_t PickTray9holes[18];
 float32_t Placereference[2] = {0, 0};
 float32_t Placeopposite[2] = {0, 0};
 float32_t PlacerotationAngleRadian = 0;
 float32_t PlacerotationAngleDegree = 0;
-float32_t PlaceTray9holes[9][2];
+float32_t PlaceTray9holes[18];
 uint8_t GoalReadyFlag = 0;
 // Modbus -----------------------------------------------------------------------------------
 ModbusHandleTypedef hmodbus;
@@ -230,7 +239,7 @@ int main(void)
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
   Controller.Kp = 1100;
-  Controller.Ki = 9.25;
+  Controller.Ki = 10;
   Controller.Kd = 0;
 
   hmodbus.huart = &huart2;
@@ -282,12 +291,13 @@ int main(void)
 //  	PlaceTray9holes[17] = -300;
 
 //  Pickreference[0] = 100;
-//  Pickreference[1] = 200;
+//  Pickreference[1] = 100;
 //  PickrotationAngleRadian = 0.785;
 //
-//  Placereference[0] = -100;
-//  Placereference[1] = -300;
-//  PlacerotationAngleRadian = 2.845;
+//  Placereference[0] = -67.2;
+//  Placereference[1] = -239.8;
+//  PlacerotationAngleRadian = -1.853;
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -297,6 +307,119 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  static uint64_t timestamp = 0;
+	  if (micros(&htim5) >= timestamp)
+	  {
+		  timestamp = micros(&htim5) + 2000;
+
+		  SetHome(&htim3, &htim1);
+
+		  if (EndEffectorSoftResetFlag)
+		  {
+			  eff_write(softReset_cmd);
+			  EndEffectorSoftResetFlag = 0;
+		  }
+
+		  eff_c = registerFrame[2].U16;
+		  if(eff_l != eff_c)
+		  {
+			  eff_action = 1;
+		  }
+
+		  switch (registerFrame[1].U16)
+		  {
+		  case 0b00001:
+			  SetPickTrayFlag = 1;
+		  break;
+		  case 0b00010:
+			  SetPlaceTrayFlag = 1;
+		  break;
+		  case 0b00100:
+			  SetHomeFlag = 1;
+		  break;
+		  case 0b01000:
+			  RunTrayFlag = 1;
+		  break;
+		  case 0b10000:
+			  RunPointFlag = 1;
+		  break;
+		  }
+
+		  EffRegState = registerFrame[2].U16;
+
+		  switch(EffRegState){
+		  case 0b0000:	//everything off
+			  if(eff_action == 1){
+				  EffAllOff_Flag = 1;
+				  eff_action = 0;
+			  }
+			  break;
+		  case 0b0001:	//laser on
+			  if(eff_action == 1){
+				  EffLaserOn_Flag = 1;
+				  eff_action = 0;
+			  }
+			  break;
+		  case 0b0010:	//gripper on
+			  if(eff_action == 1){
+				  EffGripperOn_Flag = 1;
+				  eff_action = 0;
+			  }
+			  break;
+		  case 0b0110:	//gripper picking
+			  if(eff_action == 1){
+				  EffGripperPick_Flag = 1;
+				  eff_action = 0;
+			  }
+			  break;
+		  case 0b1010:	//gripper placing
+			  if(eff_action == 1){
+				  EffGripperPlace_Flag = 1;
+				  eff_action = 0;
+			  }
+			  break;
+		  }
+
+
+		  if (emer_pushed)
+		  {
+			  if (!(SetPickTrayFlag || SetPlaceTrayFlag || SetHomeFlag || RunTrayFlag || RunPointFlag || SetHomeYFlag))
+			  {
+				  GetJoystickXYaxisValue(&DummyA, &DummyB);
+				  JoyStickControlCartesian();
+			  }
+
+			  BaseSystem_SetPickTray();
+			  BaseSystem_SetPlaceTray();
+			  BaseSystem_SetHome();
+			  BaseSystem_RuntrayMode();
+			  BaseSystem_RunPointMode();
+
+			  BaseSystem_EffAllOff();
+			  BaseSystem_EffLaserOn();
+			  BaseSystem_EffGripperOn();
+			  BaseSystem_EffGripperPick();
+			  BaseSystem_EffGripperPlace();
+		  }
+
+
+		  static uint8_t j = 0;
+		  if (j == 0)
+		  {
+			  eff_st();
+		  }
+		  j = (j + 1) % 250;
+
+		  eff_l = eff_c;
+
+		  static uint8_t i = 0;
+		  if (i == 0)
+		  {
+			  registerFrame[0].U16 = 0b0101100101100001; //Ya 22881
+			  Modbus_Protocal_Worker();
+		  }
+		  i = (i + 1) % 50;
+	   }
   }
   /* USER CODE END 3 */
 }
@@ -833,142 +956,40 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 //			eff_st();
 //			writeflag_ls = 0;
 //		}
-
 		_micros += 1000;
+
 		QEIEncoderPositionVelocity_Update(&htim3, &htim5);
+        check_pe();
+        SetHome(&htim3, &htim1);
+        ControllerState();
 
-		check_pe();
-		SetHome(&htim3, &htim1);
-
-		if (EndEffectorSoftResetFlag)
-		{
-			eff_write(softReset_cmd);
-			EndEffectorSoftResetFlag = 0;
-		}
-
-		eff_c = registerFrame[2].U16;
-		if(eff_l != eff_c){
-			eff_action = 1;
-		}
-
-		switch (registerFrame[1].U16)
-		{
-		case 0b00001:
-			SetPickTrayFlag = 1;
-		break;
-		case 0b00010:
-			SetPlaceTrayFlag = 1;
-		break;
-		case 0b00100:
-			SetHomeFlag = 1;
-		break;
-		case 0b01000:
-			RunTrayFlag = 1;
-		break;
-		case 0b10000:
-			RunPointFlag = 1;
-		break;
-		}
-
-		EffRegState = registerFrame[2].U16;
-
-		switch(EffRegState){
-		case 0b0000:	//everything off
-			if(eff_action == 1){
-				EffAllOff_Flag = 1;
-				eff_action = 0;
-			}
-			break;
-		case 0b0001:	//laser on
-			if(eff_action == 1){
-				EffLaserOn_Flag = 1;
-				eff_action = 0;
-			}
-			break;
-		case 0b0010:	//gripper on
-			if(eff_action == 1){
-				EffGripperOn_Flag = 1;
-				eff_action = 0;
-			}
-			break;
-		case 0b0110:	//gripper picking
-			if(eff_action == 1){
-				EffGripperPick_Flag = 1;
-				eff_action = 0;
-			}
-			break;
-		case 0b1010:	//gripper placing
-			if(eff_action == 1){
-				EffGripperPlace_Flag = 1;
-				eff_action = 0;
-			}
-			break;
-		}
-
-		if (!(SetPickTrayFlag || SetPlaceTrayFlag || SetHomeFlag || RunTrayFlag || RunPointFlag || SetHomeYFlag))
-		{
-			GetJoystickXYaxisValue(&DummyA, &DummyB);
-			JoyStickControlCartesian();
-		}
-
-		if (emer_pushed)
-		{
-			BaseSystem_SetPickTray();
-			BaseSystem_SetPlaceTray();
-			BaseSystem_SetHome();
-			BaseSystem_RuntrayMode();
-			BaseSystem_RunPointMode();
-
-			BaseSystem_EffAllOff();
-			BaseSystem_EffLaserOn();
-			BaseSystem_EffGripperOn();
-			BaseSystem_EffGripperPick();
-			BaseSystem_EffGripperPlace();
-		}
-
-		static uint8_t j = 0;
-		if (j == 0)
-		{
-			eff_st();
-		}
-		j = (j + 1) % 500;
-
-		eff_l = eff_c;
-
-		static uint8_t i = 0;
-		if (i == 0)
+		if (RunTrayFlag)
 		{
 			registerFrame[0].U16 = 0b0101100101100001; //Ya 22881
 			Modbus_Protocal_Worker();
-			//eff_st();
 		}
-		i = (i + 1) % 200;
-
 	}
 }
 
 void ControllerState()
 {
-	static enum {Idle, Follow} state = Idle;
-
-	if (SetHomeYFlag == 0)
+	if (SetHomeYFlag == 0 && ControllerFlag)
 	{
 		switch(state)
 		{
 		case Idle:
-			ControllerFinishedFollowFlag = 1;
 			PulseWidthModulation = 0;
 			MotorDrive(&htim1);
 			Pi = QEIData.position;
 
-			if(Pf != Pf_last)
+			if(Pf != Pf_last || emerpass)
 			{
 				t_traj = 0;
 				SteadyStateFlag = 0;
 				QuinticTraj_PreCal(Pi, Pf, &traj);
-				ControllerFinishedFollowFlag = 0;
 				state = Follow;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+				emerpass = 0;
 			}
 		break;
 
@@ -999,10 +1020,13 @@ void ControllerState()
 
 			if (SteadyStateFlag && (t_traj > t_total_actual) && (0.05 > fabs(q_des - QEIData.position)) || (P_disallow) || (N_disallow))
 			{
+				PulseWidthModulation = 0;
+				MotorDrive(&htim1);
 				state = Idle;
 				overshoot = max_pos * 100/(Pf - Pi);
 				max_pos = 0;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
+				ControllerFlag = 0;
 			}
 		break;
 		}

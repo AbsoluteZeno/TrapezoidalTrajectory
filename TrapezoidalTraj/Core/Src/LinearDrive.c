@@ -20,7 +20,6 @@ extern uint8_t SetHomeYFlag;
 extern uint8_t CenterFlag;
 extern uint8_t P_disallow;
 extern uint8_t N_disallow;
-extern uint8_t ControllerFinishedFollowFlag;
 extern PID Controller;
 extern float q_des;
 extern u16u8_t registerFrame[70];
