@@ -320,11 +320,11 @@ int main(void)
 			  EndEffectorSoftResetFlag = 0;
 		  }
 
-		  eff_c = registerFrame[2].U16;
-		  if(eff_l != eff_c)
-		  {
-			  eff_action = 1;
-		  }
+//		  eff_c = registerFrame[2].U16;
+//		  if(eff_l != eff_c)
+//		  {
+//			  eff_action = 1;
+//		  }
 
 		  switch (registerFrame[1].U16)
 		  {
@@ -345,40 +345,40 @@ int main(void)
 		  break;
 		  }
 
-		  EffRegState = registerFrame[2].U16;
-
-		  switch(EffRegState){
-		  case 0b0000:	//everything off
-			  if(eff_action == 1){
-				  EffAllOff_Flag = 1;
-				  eff_action = 0;
-			  }
-			  break;
-		  case 0b0001:	//laser on
-			  if(eff_action == 1){
-				  EffLaserOn_Flag = 1;
-				  eff_action = 0;
-			  }
-			  break;
-		  case 0b0010:	//gripper on
-			  if(eff_action == 1){
-				  EffGripperOn_Flag = 1;
-				  eff_action = 0;
-			  }
-			  break;
-		  case 0b0110:	//gripper picking
-			  if(eff_action == 1){
-				  EffGripperPick_Flag = 1;
-				  eff_action = 0;
-			  }
-			  break;
-		  case 0b1010:	//gripper placing
-			  if(eff_action == 1){
-				  EffGripperPlace_Flag = 1;
-				  eff_action = 0;
-			  }
-			  break;
-		  }
+//		  EffRegState = registerFrame[2].U16;
+//
+//		  switch(EffRegState){
+//		  case 0b0000:	//everything off
+//			  if(eff_action == 1){
+//				  EffAllOff_Flag = 1;
+//				  eff_action = 0;
+//			  }
+//			  break;
+//		  case 0b0001:	//laser on
+//			  if(eff_action == 1){
+//				  EffLaserOn_Flag = 1;
+//				  eff_action = 0;
+//			  }
+//			  break;
+//		  case 0b0010:	//gripper on
+//			  if(eff_action == 1){
+//				  EffGripperOn_Flag = 1;
+//				  eff_action = 0;
+//			  }
+//			  break;
+//		  case 0b0110:	//gripper picking
+//			  if(eff_action == 1){
+//				  EffGripperPick_Flag = 1;
+//				  eff_action = 0;
+//			  }
+//			  break;
+//		  case 0b1010:	//gripper placing
+//			  if(eff_action == 1){
+//				  EffGripperPlace_Flag = 1;
+//				  eff_action = 0;
+//			  }
+//			  break;
+//		  }
 
 
 		  if (emer_pushed)
@@ -395,22 +395,22 @@ int main(void)
 			  BaseSystem_RuntrayMode();
 			  BaseSystem_RunPointMode();
 
-			  BaseSystem_EffAllOff();
-			  BaseSystem_EffLaserOn();
-			  BaseSystem_EffGripperOn();
-			  BaseSystem_EffGripperPick();
-			  BaseSystem_EffGripperPlace();
+//			  BaseSystem_EffAllOff();
+//			  BaseSystem_EffLaserOn();
+//			  BaseSystem_EffGripperOn();
+//			  BaseSystem_EffGripperPick();
+//			  BaseSystem_EffGripperPlace();
 		  }
 
 
-		  static uint8_t j = 0;
-		  if (j == 0)
-		  {
-			  eff_st();
-		  }
-		  j = (j + 1) % 250;
-
-		  eff_l = eff_c;
+//		  static uint8_t j = 0;
+//		  if (j == 0)
+//		  {
+//			  eff_st();
+//		  }
+//		  j = (j + 1) % 250;
+//
+//		  eff_l = eff_c;
 
 		  static uint8_t i = 0;
 		  if (i == 0)
@@ -959,15 +959,75 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		_micros += 1000;
 
 		QEIEncoderPositionVelocity_Update(&htim3, &htim5);
-        check_pe();
-        SetHome(&htim3, &htim1);
-        ControllerState();
+		check_pe();
+		SetHome(&htim3, &htim1);
+		ControllerState();
 
 		if (RunTrayFlag)
 		{
 			registerFrame[0].U16 = 0b0101100101100001; //Ya 22881
 			Modbus_Protocal_Worker();
 		}
+
+//		eff_c = registerFrame[2].U16;
+//		if(eff_l != eff_c)
+//		{
+//			eff_action = 1;
+//		}
+//
+//		EffRegState = registerFrame[2].U16;
+//
+//		  switch(EffRegState){
+//		  case 0b0000:	//everything off
+//			  if(eff_action == 1){
+//				  EffAllOff_Flag = 1;
+//				  eff_action = 0;
+//			  }
+//			  break;
+//		  case 0b0001:	//laser on
+//			  if(eff_action == 1){
+//				  EffLaserOn_Flag = 1;
+//				  eff_action = 0;
+//			  }
+//			  break;
+//		  case 0b0010:	//gripper on
+//			  if(eff_action == 1){
+//				  EffGripperOn_Flag = 1;
+//				  eff_action = 0;
+//			  }
+//			  break;
+//		  case 0b0110:	//gripper picking
+//			  if(eff_action == 1){
+//				  EffGripperPick_Flag = 1;
+//				  eff_action = 0;
+//			  }
+//			  break;
+//		  case 0b1010:	//gripper placing
+//			  if(eff_action == 1){
+//				  EffGripperPlace_Flag = 1;
+//				  eff_action = 0;
+//			  }
+//			  break;
+//		  }
+//
+//		  if (emer_pushed)
+//		  {
+//			  BaseSystem_EffAllOff();
+//			  BaseSystem_EffLaserOn();
+//			  BaseSystem_EffGripperOn();
+//			  BaseSystem_EffGripperPick();
+//			  BaseSystem_EffGripperPlace();
+//		  }
+
+//		  static uint8_t j = 0;
+//		  if (j == 0)
+//		  {
+//			  eff_st();
+//		  }
+//		  j = (j + 1) % 250;
+
+//		  eff_l = eff_c;
+
 	}
 }
 
